@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
@@ -7,7 +8,7 @@ from app.routers.jobs import router
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_db()
     yield
 

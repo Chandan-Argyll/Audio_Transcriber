@@ -1,11 +1,13 @@
 import copy
 import re
 from pathlib import Path
+from collections.abc import Iterator
 from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from redis import Redis
 from rq import Queue
+from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Job, SessionLocal
 from app.schemas import JobOut, Transcript
@@ -21,7 +23,7 @@ def enqueue(job_id: str) -> None:
     Queue(connection=Redis.from_url(settings.redis_url)).enqueue('pipeline.run.run_job', job_id, job_id=job_id, job_timeout=settings.job_timeout_sec)
 
 
-def find_job(session, job_id: str) -> Job:
+def find_job(session: Session, job_id: str) -> Job:
     job = session.get(Job, job_id)
     if job is None:
         raise HTTPException(404, 'Job not found')
@@ -108,7 +110,7 @@ def rename_speakers(job_id: str, labels: dict[str, str]) -> dict:
         return transcript
 
 
-def chunks(path: Path, start: int, length: int):
+def chunks(path: Path, start: int, length: int) -> Iterator[bytes]:
     with path.open('rb') as source:
         source.seek(start)
         while length > 0:
@@ -123,7 +125,7 @@ def chunks(path: Path, start: int, length: int):
 def audio(job_id: str, request: Request, normalized: bool = False) -> StreamingResponse:
     with SessionLocal() as session:
         find_job(session, job_id)
-    # Stream normalized WAV: browser playback also works for video/FLAC inputs.
+    # Preserve original by default; the UI requests WAV for browser compatibility.
     normalized_path = storage.path(job_id, 'normalized.wav')
     path = normalized_path if normalized and normalized_path.exists() else storage.path(job_id, 'original')
     if not path.exists():

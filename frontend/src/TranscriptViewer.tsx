@@ -8,6 +8,7 @@ export function TranscriptViewer({transcript,filename,onUpdate}:{transcript:Tran
   const audio=useRef<HTMLAudioElement>(null),scroll=useRef<HTMLDivElement>(null),turnRefs=useRef<Map<number,HTMLElement>>(new Map());
   const [current,setCurrent]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[query,setQuery]=useState(''),[matchIndex,setMatchIndex]=useState(0),[editing,setEditing]=useState<string|null>(null),[label,setLabel]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState(''),[follow,setFollow]=useState(true);
   const manualUntil=useRef(0),programmaticUntil=useRef(0),lastActive=useRef(-1);
+  useEffect(()=>{if(!playing)return;let frame=0,last=0;const tick=(now:number)=>{if(now-last>=70){setCurrent(audio.current?.currentTime||0);last=now;}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing]);
   const active=transcript.turns.findIndex(t=>current>=t.start&&current<t.end);
   const speakers=useMemo(()=>new Map(transcript.speakers.map(s=>[s.id,s])),[transcript.speakers]);
   const q=query.trim().toLocaleLowerCase();
@@ -15,7 +16,7 @@ export function TranscriptViewer({transcript,filename,onUpdate}:{transcript:Tran
   const virtual=transcript.turns.length>500;
   const virtualizer=useVirtualizer({count:virtual?transcript.turns.length:0,getScrollElement:()=>scroll.current,estimateSize:()=>140,overscan:8});
   const scrollToTurn=(index:number)=>{programmaticUntil.current=Date.now()+700;if(virtual)virtualizer.scrollToIndex(index,{align:'center'});else turnRefs.current.get(index)?.scrollIntoView({block:'center',behavior:'smooth'});};
-  useEffect(()=>{if(active<0||Date.now()<manualUntil.current||!playing)return;if(active!==lastActive.current){scrollToTurn(active);lastActive.current=active;}},[active,playing,virtual]);
+  useEffect(()=>{if(active<0||Date.now()<manualUntil.current||!playing)return;if(active!==lastActive.current){scrollToTurn(active);lastActive.current=active;}},[active,playing,virtual,follow]);
   useEffect(()=>{const timer=window.setInterval(()=>{if(!follow&&Date.now()>=manualUntil.current){setFollow(true);lastActive.current=-1;}},500);return()=>clearInterval(timer);},[follow]);
   useEffect(()=>{setMatchIndex(0);},[query]);
   useEffect(()=>{if(matches.length)scrollToTurn(matches[matchIndex%matches.length].turn);},[matches,matchIndex]);

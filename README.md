@@ -19,6 +19,9 @@ Upload audio or video, watch the stages, then click a timestamp or word to seek.
 Click a speaker chip to rename it. Search matches have previous/next navigation.
 Choose Export to download a file. Recent jobs and files persist in named volumes.
 API documentation: http://localhost:8000/docs.
+If port 8000 is occupied, set `API_PORT=8001` in `.env`; API docs then use 8001.
+The frontend continues to use the internal API address automatically.
+Similarly, `FRONTEND_PORT=5174` changes the frontend host port if 5173 is occupied.
 
 ## Architecture
 
@@ -125,9 +128,11 @@ python -m pytest tests -q
 # From frontend:
 npm test
 npm run build
+# With mock Compose running, from root:
+python scripts/smoke.py
 ```
 
-Tests generate a tiny mono WAV in memory. Backend tests cover content validation,
+Tests generate a tiny mono WAV in memory and include a generated WAV fixture. Backend tests cover content validation,
 limits, mock orchestration, overlap assignment, Unknown handling, turn ordering,
 exports, speaker renaming, ranges, and deletion. API tests replace only queue
 submission and invoke the same worker function synchronously; a real Redis worker
@@ -180,6 +185,19 @@ CSV. Empty/missing references fail clearly. Engine overrides allow comparisons;
 the two TODO engines must be implemented before evaluating them. No accuracy is
 claimed from mock outputs. Overlapping reference turns are required to evaluate
 overlap faithfully; the app's output gives only one speaker per word.
+
+MeetEval compiles C++ extensions. Native Windows needs Microsoft C++ Build Tools;
+alternatively use the evaluation container (no GPU or model weights needed for
+mock runs or scoring saved predictions):
+
+```sh
+docker build --target evaluation -t thread-eval backend
+docker run --rm -v "${PWD}/dataset:/dataset" -v "${PWD}/results:/results" thread-eval /dataset --csv /results/mock.csv
+```
+
+The evaluation image does not install real inference dependencies. To evaluate
+WhisperX on a GPU, install `requirements-eval.txt` in the GPU worker image/environment
+and run the same CLI there. Reference and prediction files must use UTF-8 JSON.
 
 ## Settings and limits
 

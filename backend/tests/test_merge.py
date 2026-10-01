@@ -26,3 +26,16 @@ def test_first_appearance_and_missing_times():
     assert [s['label'] for s in transcript['speakers']] == ['Person 1', 'Person 2']
     assert len(transcript['turns']) == 3
     assert transcript['turns'][1]['text'] == 'b !'
+
+
+def test_unalignable_words_and_nonfinite_scores_are_preserved():
+    result = {'segments': [{'start': 1, 'words': [
+        {'word': '2026', 'start': None, 'end': None, 'score': float('nan')},
+        {'word': 'works', 'start': 2, 'end': 3, 'speaker': 'A', 'score': .9},
+    ]}]}
+    assign_mock_speakers([{'start': 1, 'end': 3, 'speaker': 'A'}], result)
+    transcript = build_transcript('test', 4, result)
+    assert transcript['turns'][0]['text'] == '2026'
+    assert transcript['turns'][0]['speaker_id'] == 'Unknown'
+    assert transcript['turns'][0]['words'][0]['score'] is None
+    assert transcript['turns'][0]['start'] == 1

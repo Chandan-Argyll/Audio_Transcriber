@@ -12,7 +12,7 @@ services:
     build:
       context: ./backend
       target: base
-    ports: ["8000:8000"]
+    ports: ["${API_PORT:-8000}:8000"]
     environment: &app-env
       ENGINE: ${ENGINE:-mock}
       TRANSCRIPTION_ENGINE: ${TRANSCRIPTION_ENGINE:-}
@@ -51,7 +51,7 @@ services:
       api: {condition: service_healthy}
   frontend:
     build: ./frontend
-    ports: ["5173:5173"]
+    ports: ["${FRONTEND_PORT:-5173}:5173"]
     environment:
       API_PROXY_TARGET: http://api:8000
     depends_on:

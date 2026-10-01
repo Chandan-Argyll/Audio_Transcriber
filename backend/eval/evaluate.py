@@ -2,7 +2,6 @@
 import argparse
 import csv
 import json
-import math
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -83,6 +82,8 @@ def main() -> None:
     print(f'{"File":32} {"WER":>9} {"DER":>9} {"cpWER":>9}')
     for audio in files:
         reference = Transcript.model_validate_json(audio.with_suffix('.json').read_text(encoding='utf-8')).model_dump()
+        if not reference['turns']:
+            parser.error(f'{audio.name}: reference has no turns; exclude silent references from this evaluation')
         prediction = json.loads((args.predictions / f'{audio.stem}.json').read_text(encoding='utf-8')) if args.predictions else predict(audio)
         prediction = Transcript.model_validate(prediction).model_dump()
         if args.save_predictions:

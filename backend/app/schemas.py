@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class Word(BaseModel):
@@ -42,5 +42,7 @@ class JobOut(BaseModel):
     created_at: datetime
 
 
-class RenameRequest(BaseModel):
-    root: dict[str, str] = Field(default_factory=dict)
+    @computed_field
+    @property
+    def status(self) -> str:
+        return self.stage if self.stage in {'queued', 'completed', 'failed'} else 'processing'
