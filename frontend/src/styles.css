@@ -9,3 +9,5 @@
 @media(max-width:899px){.brand-bar{height:70px;padding:0 22px}.brand-subtitle,.brand-divider{display:none}.brand{font-size:31px}.workspace{display:flex;flex-direction:column;height:auto}.control-pane{overflow:visible;border-right:0;padding:28px 22px;max-width:650px;width:100%;margin:auto}h1{font-size:34px}.viewer-pane{min-height:650px;border-top:1px solid var(--border)}.transcript-viewer{height:800px}.empty-view{padding:55px 20px}.pane-footer{margin-top:20px}.intro{margin-bottom:22px}.transcript-header{padding:22px 20px 16px}.audio-bar{padding:14px 20px}.transcript-scroll{padding:10px 20px}.empty-features{flex-wrap:wrap;justify-content:center}.local-badge{font-size:9px}.audio-time{font-size:9px}.audio-bar{gap:8px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
 .stage-panel li.failed{color:var(--burgundy);font-weight:600}.stage-panel li.failed>span{border-color:var(--burgundy);background:var(--error-bg)}
+
+.demo-banner{flex-shrink:0;padding:22px 30px;background:var(--burgundy);color:var(--ivory);font-size:17px;font-weight:700;line-height:1.5;border-bottom:3px solid var(--gold);}

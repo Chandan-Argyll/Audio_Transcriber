@@ -28,6 +28,7 @@ def main() -> None:
             time.sleep(.25)
         assert status['stage'] == 'completed', status
         transcript = client.get(f'/api/jobs/{job_id}/transcript').json()
+        assert transcript['transcription_engine'] == transcript['diarization_engine'] == 'mock'
         assert len(transcript['turns']) == 40
         assert len(transcript['speakers']) == 3
         assert client.patch(f'/api/jobs/{job_id}/speakers', json={'Person 1': 'Alice'}).status_code == 200

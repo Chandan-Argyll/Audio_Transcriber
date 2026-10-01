@@ -20,4 +20,5 @@ app.include_router(router)
 
 @app.get('/api/health')
 def health() -> dict[str, str]:
-    return {'status': 'ok', 'engine': get_settings().engine}
+    settings = get_settings()
+    return {'status': 'ok', 'engine': settings.engine, **settings.engine_info()}

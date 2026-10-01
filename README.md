@@ -4,6 +4,34 @@ A React 18 / FastAPI / RQ monorepo for uploading recordings, following word-leve
 transcripts, naming speakers, searching, and exporting TXT, SRT, or JSON. The default
 mock engine produces **fake dialogue**, scaled to the recording duration, with three
 speakers and 40 turns. It is for development, not transcription or accuracy claims.
+Every job and JSON transcript stores `transcription_engine` and `diarization_engine`.
+The worker records the engines it actually executes; changing settings later does
+not change completed job provenance. Any mock stage causes a persistent
+**DEMO DATA — not a real transcription of your audio** banner above the viewer.
+Jobs created before this change receive `unknown` provenance and a warning; their
+engine settings cannot be reconstructed safely.
+
+`APP_ENV` accepts `development` (default) or `production`. Production workers refuse
+to start if `ENGINE=mock` or either engine override selects mock, even when another
+override selects a real engine. Startup logs list engines, model names, device,
+and only the presence of HF_TOKEN. The header polls `/api/health` every 10 seconds
+for the configured engines and device. Health reports configuration, not GPU
+readiness or worker liveness. Keep API and worker engine settings consistent;
+Compose overrides also keep their device settings consistent. Repository `.env`
+settings are read when local commands run from `backend/` as well.
+
+The real inference duration test is opt-in and runs actual WhisperX/pyannote:
+
+```powershell
+# From backend/ with the venv active; HF_TOKEN must be configured.
+$env:RUN_REAL_ENGINE_TEST="1"
+$env:REAL_ENGINE_AUDIO="C:\recordings\english-speech.wav"
+python -m pytest tests/test_real_engine.py -q
+```
+
+It checks that real-engine output is nonempty, duration matches ffprobe within two
+seconds, and turn timestamps fit inside the recording. This test downloads models
+and is skipped in normal GPU-free tests; it is not replaced by mock inference.
 
 ## Quick start
 

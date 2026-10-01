@@ -1,5 +1,22 @@
 # Validation
 
+## Engine provenance and demo safeguards
+
+Added regression coverage for persistent per-job engine metadata (including JSON
+exports), executing worker settings, additive migration of legacy records,
+production refusal for any mock configuration, startup logging without token
+values, health response, mock/mixed-engine banners, historical warnings, and
+the frontend health indicator. The real-engine duration integration test is opt-in
+(`RUN_REAL_ENGINE_TEST=1`, `REAL_ENGINE_AUDIO`, authorized `HF_TOKEN`), runs actual
+WhisperX/pyannote, and requires duration within two seconds of ffprobe. It was not
+run in this session because authorized real-model access is unavailable.
+Verified after this change: 21 backend tests passed (one real-model integration
+test skipped), 10 frontend tests passed, production TypeScript build passed,
+Compose smoke test passed with persisted mock metadata, and a production/mock
+worker container exited with the expected startup refusal message.
+
+## Initial build
+
 Verified on October 2, 2026 with `ENGINE=mock`:
 
 - React strict TypeScript production build (`npm run build`).

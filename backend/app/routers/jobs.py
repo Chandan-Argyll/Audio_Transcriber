@@ -55,7 +55,9 @@ def create_job(file: UploadFile = File(...), num_speakers: int | None = Form(Non
     except Exception as exc:
         storage.delete(job_id)
         raise HTTPException(500, 'Media validation unavailable; check server ffprobe installation') from exc
-    job = Job(id=job_id, filename=Path(file.filename or 'audio').name[:255], duration_sec=duration, options=options)
+    transcription, diarization = get_settings().active_engines()
+    job = Job(id=job_id, filename=Path(file.filename or 'audio').name[:255], duration_sec=duration, options=options,
+              transcription_engine=transcription, diarization_engine=diarization)
     with SessionLocal() as session:
         session.add(job)
         session.commit()

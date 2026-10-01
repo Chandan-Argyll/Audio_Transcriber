@@ -1,4 +1,7 @@
 services:
+  api:
+    environment:
+      DEVICE: cpu
   worker:
     build:
       context: ./backend

@@ -12,8 +12,7 @@ from pipeline.preprocess import normalize
 @lru_cache
 def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
     settings = get_settings()
-    stt = settings.transcription_engine or settings.engine
-    diar = settings.diarization_engine or ('pyannote' if settings.engine == 'whisperx' else settings.engine)
+    stt, diar = settings.active_engines()
     if stt == 'mock':
         transcription = MockEngine()
     elif stt == 'whisperx':
@@ -56,6 +55,11 @@ def run_job(job_id: str) -> None:
             return
         duration, options = job.duration_sec, job.options
     try:
+        settings = get_settings()
+        settings.require_safe_worker()
+        stt, diar = settings.active_engines()
+        # Persist actual executing worker settings even if API settings differed.
+        update(job_id, transcription_engine=stt, diarization_engine=diar)
         update(job_id, stage='preprocessing', progress=10)
         audio = storage.path(job_id, 'normalized.wav')
         normalize(storage.path(job_id, 'original'), audio)
@@ -73,6 +77,7 @@ def run_job(job_id: str) -> None:
             import whisperx
             result = whisperx.assign_word_speakers(segments, result)
         transcript = build_transcript(job_id, duration, result)
+        transcript.update(transcription_engine=stt, diarization_engine=diar)
         update(job_id, stage='completed', progress=100, transcript=transcript, error=None)
     except Exception as exc:
         # Some upstream exceptions contain auth URLs/tokens. Never persist them.

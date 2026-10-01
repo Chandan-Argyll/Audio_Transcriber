@@ -1,4 +1,7 @@
 services:
+  api:
+    environment:
+      DEVICE: cuda
   worker:
     build:
       context: ./backend

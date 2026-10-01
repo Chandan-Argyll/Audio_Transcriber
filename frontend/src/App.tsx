@@ -2,7 +2,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {api} from './api';
 import {Icon} from './Icons';
 import {TranscriptViewer} from './TranscriptViewer';
-import type {Job,Transcript} from './types';
+import type {Health,Job,Transcript} from './types';
 export const time=(seconds:number)=>{const s=Math.max(0,Math.floor(seconds));return [Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(n=>String(n).padStart(2,'0')).join(':');};
 const stages=['queued','preprocessing','transcribing','aligning','diarizing','merging','completed'];
 const stageNames=['In queue','Preparing audio','Transcribing speech','Aligning words','Identifying speakers','Bringing it together','Ready to review'];
@@ -10,10 +10,10 @@ const stageProgress=[0,10,25,50,70,90,100];
 
 export default function App(){
   const [file,setFile]=useState<File|null>(null),[recent,setRecent]=useState<Job[]>([]),[job,setJob]=useState<Job|null>(null),[transcript,setTranscript]=useState<Transcript|null>(null);
-  const [busy,setBusy]=useState(false),[uploadProgress,setUploadProgress]=useState(0),[error,setError]=useState(''),[drag,setDrag]=useState(false),[exact,setExact]=useState(''),[min,setMin]=useState(''),[max,setMax]=useState(''),[mode,setMode]=useState('auto'),[mock,setMock]=useState(false);
+  const [busy,setBusy]=useState(false),[uploadProgress,setUploadProgress]=useState(0),[error,setError]=useState(''),[drag,setDrag]=useState(false),[exact,setExact]=useState(''),[min,setMin]=useState(''),[max,setMax]=useState(''),[mode,setMode]=useState('auto'),[health,setHealth]=useState<Health|null>(null);
   const input=useRef<HTMLInputElement>(null),selection=useRef(0);
   const refresh=useCallback(()=>api.list().then(setRecent).catch(()=>{}),[]);
-  useEffect(()=>{void refresh();fetch('/api/health').then(r=>r.json()).then(d=>setMock(d.engine==='mock')).catch(()=>{});},[refresh]);
+  useEffect(()=>{void refresh();let stopped=false;const check=()=>fetch('/api/health').then(r=>{if(!r.ok)throw new Error();return r.json();}).then(d=>{if(!stopped)setHealth(d);}).catch(()=>{if(!stopped)setHealth(null);});void check();const timer=window.setInterval(()=>void check(),10000);return()=>{stopped=true;clearInterval(timer);};},[refresh]);
   const select=async(next:Job)=>{const token=++selection.current;setJob(next);setTranscript(null);setError('');if(next.stage==='completed')try{const value=await api.transcript(next.id);if(token===selection.current)setTranscript(value);}catch(e){if(token===selection.current)setError((e as Error).message);}};
   useEffect(()=>{
     if(!job || ['completed','failed'].includes(job.stage))return;
@@ -25,7 +25,7 @@ export default function App(){
   const remove=async(item:Job)=>{try{await api.delete(item.id);if(job?.id===item.id){++selection.current;setJob(null);setTranscript(null);}void refresh();}catch(e){setError((e as Error).message);}};
   const processing=job&&!['completed','failed'].includes(job.stage);
   return <div className="app-shell">
-    <header className="brand-bar"><a href="/" className="brand"><span className="brand-mark"><i/><i/><i/><i/></span>thread<span className="brand-divider"/><span className="brand-subtitle">EVERY VOICE, IN FOCUS</span></a><span className="local-badge"><span/> {mock?'Mock workspace':'Open-source transcription'}</span></header>
+    <header className="brand-bar"><a href="/" className="brand"><span className="brand-mark"><i/><i/><i/><i/></span>thread<span className="brand-divider"/><span className="brand-subtitle">EVERY VOICE, IN FOCUS</span></a><span className="local-badge" role="status"><span/> {health?`${health.transcription_engine} / ${health.diarization_engine} · ${health.device}`:'Engine status unavailable'}</span></header>
     <main className="workspace">
       <aside className="control-pane">
         <div className="eyebrow">YOUR WORKSPACE</div><h1>From conversation<br/>to clarity.</h1><p className="intro">A transcript for every voice. Upload a recording<br className="desktop-break"/> and let us untangle the conversation.</p>

@@ -27,6 +27,8 @@ class Turn(BaseModel):
 class Transcript(BaseModel):
     job_id: str
     duration_sec: float
+    transcription_engine: str = 'unknown'
+    diarization_engine: str = 'unknown'
     speakers: list[Speaker]
     turns: list[Turn]
 
@@ -35,6 +37,8 @@ class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     filename: str
+    transcription_engine: str
+    diarization_engine: str
     stage: str
     progress: int
     error: str | None

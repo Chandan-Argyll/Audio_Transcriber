@@ -8,6 +8,7 @@ os.environ['DATABASE_URL'] = 'sqlite:///' + str(Path(tempfile.mkdtemp()) / 'test
 os.environ['STORAGE_DIR'] = tempfile.mkdtemp()
 os.environ['MOCK_DELAY_SEC'] = '0'
 os.environ['ENGINE'] = 'mock'
+os.environ['APP_ENV'] = 'development'
 os.environ['TRANSCRIPTION_ENGINE'] = 'mock'
 os.environ['DIARIZATION_ENGINE'] = 'mock'
 

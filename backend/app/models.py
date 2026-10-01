@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import JSON, DateTime, Float, Integer, String, create_engine
+from sqlalchemy import JSON, DateTime, Float, Integer, String, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from app.config import get_settings
 
@@ -13,6 +13,8 @@ class Job(Base):
     __tablename__ = 'jobs'
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     filename: Mapped[str] = mapped_column(String(255))
+    transcription_engine: Mapped[str] = mapped_column(String(32), default='unknown', server_default='unknown')
+    diarization_engine: Mapped[str] = mapped_column(String(32), default='unknown', server_default='unknown')
     stage: Mapped[str] = mapped_column(String(32), default='queued')
     progress: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -31,3 +33,14 @@ SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    # Additive migration; old records must not inherit today's engine settings.
+    with engine.begin() as connection:
+        columns = {column['name'] for column in inspect(connection).get_columns('jobs')}
+        for name in ('transcription_engine', 'diarization_engine'):
+            if name not in columns:
+                connection.execute(text(f"ALTER TABLE jobs ADD COLUMN {name} VARCHAR(32) NOT NULL DEFAULT 'unknown'"))
+    with SessionLocal() as session:
+        for job in session.query(Job).filter(Job.transcript.is_not(None)):
+            if 'transcription_engine' not in job.transcript or 'diarization_engine' not in job.transcript:
+                job.transcript = {**job.transcript, 'transcription_engine': job.transcription_engine, 'diarization_engine': job.diarization_engine}
+        session.commit()
