@@ -120,12 +120,12 @@ def chunks(path: Path, start: int, length: int):
 
 
 @router.get('/{job_id}/audio')
-def audio(job_id: str, request: Request) -> StreamingResponse:
+def audio(job_id: str, request: Request, normalized: bool = False) -> StreamingResponse:
     with SessionLocal() as session:
         find_job(session, job_id)
     # Stream normalized WAV: browser playback also works for video/FLAC inputs.
-    normalized = storage.path(job_id, 'normalized.wav')
-    path = normalized if normalized.exists() else storage.path(job_id, 'original')
+    normalized_path = storage.path(job_id, 'normalized.wav')
+    path = normalized_path if normalized and normalized_path.exists() else storage.path(job_id, 'original')
     if not path.exists():
         raise HTTPException(404, 'Audio file missing')
     size = path.stat().st_size
@@ -144,7 +144,7 @@ def audio(job_id: str, request: Request) -> StreamingResponse:
         status = 206
         headers['Content-Range'] = f'bytes {start}-{end}/{size}'
     headers['Content-Length'] = str(end - start + 1)
-    return StreamingResponse(chunks(path, start, end - start + 1), status_code=status, headers=headers, media_type='audio/wav' if path == normalized else 'application/octet-stream')
+    return StreamingResponse(chunks(path, start, end - start + 1), status_code=status, headers=headers, media_type='audio/wav' if path == normalized_path else 'application/octet-stream')
 
 
 @router.get('/{job_id}/export')
