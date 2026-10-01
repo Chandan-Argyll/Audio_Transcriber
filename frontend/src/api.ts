@@ -12,6 +12,6 @@ export const api = {
     const xhr=new XMLHttpRequest(); const body=new FormData(); body.append('file',file); Object.entries(options).forEach(([k,v])=>body.append(k,String(v)));
     xhr.open('POST','/api/jobs'); xhr.upload.onprogress=e=>{if(e.lengthComputable) progress(Math.round(e.loaded/e.total*100));};
     xhr.onload=()=>{try{const data=JSON.parse(xhr.responseText); if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(typeof data.detail==='string'?data.detail:'Upload failed'));}catch{reject(new Error('Unexpected server response'));}};
-    xhr.onerror=()=>reject(new Error('Connection lost. Please try again.')); xhr.send(body);
+    xhr.onerror=()=>reject(new Error('Upload connection failed. Check that the backend is running and the frontend API proxy points to it.')); xhr.send(body);
   })
 };

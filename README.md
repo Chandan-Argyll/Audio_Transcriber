@@ -1,5 +1,12 @@
 # Thread — Speaker-labeled audio transcription
 
+For native development, Vite reads `API_PORT` / `API_PROXY_TARGET` from the root
+`.env`. The default target is `http://127.0.0.1:<API_PORT>` (8000 if unset).
+Use `http://127.0.0.1:5173` for native development to avoid IPv6 routing to another
+process on `localhost`. Docker uses its explicit `http://api:8000` target.
+Restart Vite after changing `.env`. A failed proxy connection returns JSON 503
+with setup guidance and logs the unavailable backend address in the Vite terminal.
+
 A React 18 / FastAPI / RQ monorepo for uploading recordings, following word-level
 transcripts, naming speakers, searching, and exporting TXT, SRT, or JSON. The default
 mock engine produces **fake dialogue**, scaled to the recording duration, with three
