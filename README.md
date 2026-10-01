@@ -2,8 +2,9 @@
 
 For native development, Vite reads `API_PORT` / `API_PROXY_TARGET` from the root
 `.env`. The default target is `http://127.0.0.1:<API_PORT>` (8000 if unset).
-Use `http://127.0.0.1:5173` for native development to avoid IPv6 routing to another
-process on `localhost`. Docker uses its explicit `http://api:8000` target.
+Use `http://127.0.0.1:5173` on this computer, or the network URL printed by Vite
+from another device. `npm run dev` binds to all interfaces for LAN access; the
+API proxy still connects locally over IPv4. Docker uses `http://api:8000`.
 Restart Vite after changing `.env`. A failed proxy connection returns JSON 503
 with setup guidance and logs the unavailable backend address in the Vite terminal.
 
