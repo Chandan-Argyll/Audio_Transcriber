@@ -1,0 +1,9 @@
+services:
+  worker:
+    build:
+      context: ./backend
+      target: models
+    environment:
+      DEVICE: cpu
+      COMPUTE_TYPE: int8
+      BATCH_SIZE: 2

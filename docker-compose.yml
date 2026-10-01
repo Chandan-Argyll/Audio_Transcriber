@@ -1,0 +1,62 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build:
+      context: ./backend
+      target: base
+    ports: ["8000:8000"]
+    environment: &app-env
+      ENGINE: ${ENGINE:-mock}
+      TRANSCRIPTION_ENGINE: ${TRANSCRIPTION_ENGINE:-}
+      DIARIZATION_ENGINE: ${DIARIZATION_ENGINE:-}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/jobs.db}
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/data/files
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+      MAX_DURATION_SEC: ${MAX_DURATION_SEC:-10800}
+      MOCK_DELAY_SEC: ${MOCK_DELAY_SEC:-1}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      JOB_TIMEOUT_SEC: ${JOB_TIMEOUT_SEC:-14400}
+    volumes: [app-data:/app/data]
+    depends_on:
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  worker:
+    build:
+      context: ./backend
+      target: base
+    command: python -m worker.main
+    environment:
+      <<: *app-env
+      HF_TOKEN: ${HF_TOKEN:-}
+      DEVICE: ${DEVICE:-cpu}
+      COMPUTE_TYPE: ${COMPUTE_TYPE:-int8}
+      BATCH_SIZE: ${BATCH_SIZE:-2}
+      FREE_GPU_MEMORY: ${FREE_GPU_MEMORY:-false}
+      HF_HOME: /models
+    volumes: [app-data:/app/data, model-cache:/models]
+    depends_on:
+      api: {condition: service_healthy}
+  frontend:
+    build: ./frontend
+    ports: ["5173:5173"]
+    environment:
+      API_PROXY_TARGET: http://api:8000
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  app-data:
+  redis-data:
+  model-cache:
