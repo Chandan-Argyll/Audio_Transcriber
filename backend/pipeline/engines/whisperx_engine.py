@@ -16,6 +16,8 @@ class WhisperXEngine:
         settings = get_settings()
         if self.model is None:
             self.model = whisperx.load_model('large-v3', settings.device, compute_type=settings.compute_type, language='en')
+        elif settings.free_gpu_memory and settings.device == 'cuda':
+            self.model.model.model.load_model()
         if settings.free_gpu_memory and self.alignment is not None:
             self.alignment.to('cpu')
         result = self.model.transcribe(whisperx.load_audio(str(audio)), batch_size=settings.batch_size, language='en')

@@ -1,0 +1,4 @@
+-r requirements.txt
+jiwer>=4,<5
+pyannote.metrics>=4,<5
+meeteval>=0.4,<1
