@@ -1,26 +1,37 @@
 import copy
+import logging
 import re
 from pathlib import Path
 from collections.abc import Iterator
 from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
-from redis import Redis
-from rq import Queue
 from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Job, SessionLocal
+from app.queue import queue, safe_redis_endpoint
 from app.schemas import JobOut, Transcript
 from app.storage import storage
 from pipeline.exporters import export
 from pipeline.preprocess import probe
 
 router = APIRouter(prefix='/api/jobs', tags=['jobs'])
+logger = logging.getLogger('thread.jobs')
 
 
 def enqueue(job_id: str) -> None:
     settings = get_settings()
-    Queue(connection=Redis.from_url(settings.redis_url)).enqueue('pipeline.run.run_job', job_id, job_id=job_id, job_timeout=settings.job_timeout_sec)
+    try:
+        queue().enqueue('pipeline.run.run_job', job_id, job_id=job_id, job_timeout=settings.job_timeout_sec)
+    except Exception as exc:
+        logger.exception(
+            'Failed to enqueue job %s on queue %s at %s (%s)',
+            job_id,
+            settings.rq_queue_name,
+            safe_redis_endpoint(settings.redis_url),
+            type(exc).__name__,
+        )
+        raise
 
 
 def find_job(session: Session, job_id: str) -> Job:

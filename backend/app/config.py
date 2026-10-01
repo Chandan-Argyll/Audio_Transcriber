@@ -8,7 +8,8 @@ class Settings(BaseSettings):
     # Read repository settings even when local commands run from backend/.
     model_config = SettingsConfigDict(env_file=(Path(__file__).resolve().parents[2] / '.env', '.env'), extra='ignore')
     database_url: str = 'sqlite:///./data/jobs.db'
-    redis_url: str = 'redis://localhost:6379/0'
+    redis_url: str = 'redis://127.0.0.1:6379/0'
+    rq_queue_name: str = 'audio-transcriber'
     storage_dir: Path = Path('data/files')
     engine: str = 'mock'
     app_env: Literal['development', 'production'] = 'development'

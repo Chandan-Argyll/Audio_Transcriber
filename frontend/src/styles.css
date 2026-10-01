@@ -11,3 +11,4 @@
 .stage-panel li.failed{color:var(--burgundy);font-weight:600}.stage-panel li.failed>span{border-color:var(--burgundy);background:var(--error-bg)}
 
 .demo-banner{flex-shrink:0;padding:22px 30px;background:var(--burgundy);color:var(--ivory);font-size:17px;font-weight:700;line-height:1.5;border-bottom:3px solid var(--gold);}
+.local-badge.queue-down>span{background:var(--burgundy)}

@@ -15,6 +15,16 @@ test skipped), 10 frontend tests passed, production TypeScript build passed,
 Compose smoke test passed with persisted mock metadata, and a production/mock
 worker container exited with the expected startup refusal message.
 
+## Queue connectivity
+
+The LAN frontend was verified against the dedicated Docker API endpoint after a
+native/Docker split caused `503 Background queue unavailable`. Health now reports
+one active `audio-transcriber` worker, and the LAN smoke test passed upload, Redis
+enqueue, worker execution, transcript polling, rename, all exports, byte ranges,
+and deletion. Backend tests cover ready/no-worker/unavailable health states,
+credential-safe Redis endpoints, and visible enqueue errors. The UI disables upload
+when Redis or the worker is unavailable.
+
 ## Initial build
 
 Verified on October 2, 2026 with `ENGINE=mock`:

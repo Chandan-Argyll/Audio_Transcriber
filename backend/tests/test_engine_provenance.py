@@ -62,8 +62,12 @@ def test_startup_log_never_contains_token(monkeypatch, caplog):
         assert expected in caplog.text
 
 
-def test_health_exposes_engines_device_without_secret(client):
+def test_health_exposes_engines_device_without_secret(client, monkeypatch):
+    monkeypatch.setattr('app.main.queue_health', lambda: {'queue_status': 'ready', 'worker_count': 1, 'queue_name': 'audio-transcriber', 'redis_endpoint': 'redis://redis:6379/0'})
     data = client.get('/api/health').json()
     assert data['transcription_engine'] == data['diarization_engine'] == 'mock'
     assert data['device'] in {'cpu', 'cuda'}
+    assert data['status'] == 'ok'
+    assert data['queue_status'] == 'ready'
+    assert data['worker_count'] == 1
     assert 'hf_token' not in data

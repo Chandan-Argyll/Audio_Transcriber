@@ -136,12 +136,23 @@ Run commands from the repository root unless indicated otherwise.
 python -m venv .venv
 # Activate .venv (PowerShell: .\.venv\Scripts\Activate.ps1)
 pip install -r backend/requirements-dev.txt
-# Start just Redis if developing outside containers:
-docker compose up -d redis
 ```
 
-Compose Redis is internal by default. For local API/worker use, start Redis with
-`docker run --rm -p 127.0.0.1:6379:6379 redis:7-alpine` instead.
+Choose one topology and keep its API, database, files, Redis, and worker together.
+The normal and recommended mode is full Compose: `docker compose up --build` and
+open its configured frontend port. For a native API and worker, start a dedicated
+Redis on a free loopback port, then set the same URL and queue name for both:
+
+```sh
+docker run --rm -p 127.0.0.1:6380:6379 redis:7-alpine
+# root .env
+# REDIS_URL=redis://127.0.0.1:6380/0
+# RQ_QUEUE_NAME=audio-transcriber-local
+```
+
+Do not point a native API at Compose's internal `redis` hostname, and do not share
+another project's default RQ queue. `/api/health` reports `ready`, `no_worker`, or
+`unavailable`; the UI disables upload until a worker listens on the configured queue.
 
 ```sh
 cd backend

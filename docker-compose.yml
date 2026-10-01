@@ -21,6 +21,7 @@ services:
       DIARIZATION_ENGINE: ${DIARIZATION_ENGINE:-}
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/jobs.db}
       REDIS_URL: redis://redis:6379/0
+      RQ_QUEUE_NAME: audio-transcriber
       STORAGE_DIR: /app/data/files
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
       MAX_DURATION_SEC: ${MAX_DURATION_SEC:-10800}

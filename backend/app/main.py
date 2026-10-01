@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.models import init_db
+from app.queue import queue_health
 from app.routers.jobs import router
 
 
@@ -19,6 +20,14 @@ app.include_router(router)
 
 
 @app.get('/api/health')
-def health() -> dict[str, str]:
+def health() -> dict[str, str | int]:
     settings = get_settings()
-    return {'status': 'ok', 'engine': settings.engine, **settings.engine_info()}
+    queue = queue_health()
+    return {
+        'status': 'ok' if queue['queue_status'] == 'ready' else 'degraded',
+        'engine': settings.engine,
+        **settings.engine_info(),
+        'queue_status': queue['queue_status'],
+        'worker_count': queue['worker_count'],
+        'queue_name': queue['queue_name'],
+    }
