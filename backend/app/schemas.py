@@ -44,6 +44,7 @@ class JobOut(BaseModel):
     error: str | None
     duration_sec: float
     created_at: datetime
+    stage_timings: dict[str, float] | None = None
 
 
     @computed_field

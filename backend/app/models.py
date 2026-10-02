@@ -21,6 +21,9 @@ class Job(Base):
     duration_sec: Mapped[float] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     options: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Wall-clock seconds per stage (preprocess, transcribe incl. alignment,
+    # diarize, merge, total) for measuring CPU speed.
+    stage_timings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Deferred: a multi-hour hearing transcript is megabytes of JSON, and job
     # status polling and listings never need it.
     transcript: Mapped[dict | None] = mapped_column(JSON, nullable=True, deferred=True)
@@ -41,6 +44,8 @@ def init_db() -> None:
         missing = [name for name in ('transcription_engine', 'diarization_engine') if name not in columns]
         for name in missing:
             connection.execute(text(f"ALTER TABLE jobs ADD COLUMN {name} VARCHAR(32) NOT NULL DEFAULT 'unknown'"))
+        if 'stage_timings' not in columns:
+            connection.execute(text('ALTER TABLE jobs ADD COLUMN stage_timings JSON'))
     if not missing:
         # Legacy transcripts were backfilled when the columns were added; avoid
         # loading every stored transcript on each startup.

@@ -1,3 +1,5 @@
+import logging
+import time
 from functools import lru_cache
 from typing import Any
 from app.config import get_settings
@@ -36,6 +38,9 @@ def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
     return transcription, diarization
 
 
+logger = logging.getLogger('thread.run')
+
+
 def update(job_id: str, **values: Any) -> bool:
     with SessionLocal() as session:
         job = session.get(Job, job_id)
@@ -59,21 +64,36 @@ def run_job(job_id: str) -> None:
         stt, diar = settings.active_engines()
         # Persist actual executing worker settings even if API settings differed.
         update(job_id, transcription_engine=stt, diarization_engine=diar)
-        update(job_id, stage='preprocessing', progress=10)
+        timings: dict[str, float] = {}
+        began = clock = time.perf_counter()
+
+        def lap(name: str) -> dict[str, float]:
+            # Persisted after every stage, so partial timings survive a failure.
+            nonlocal clock
+            now = time.perf_counter()
+            timings[name] = round(timings.get(name, 0) + now - clock, 3)
+            timings['total'] = round(now - began, 3)
+            clock = now
+            return dict(timings)
+
+        update(job_id, stage='preprocessing', progress=10, stage_timings=None)
         audio = storage.path(job_id, 'normalized.wav')
         normalize(storage.path(job_id, 'original'), audio, duration)
         transcription, diarization = engines()
-        update(job_id, stage='transcribing', progress=25)
+        update(job_id, stage='transcribing', progress=25, stage_timings=lap('preprocess'))
         result = transcription.transcribe(audio, duration)
-        update(job_id, stage='aligning', progress=50)
+        update(job_id, stage='aligning', progress=50, stage_timings=lap('transcribe'))
         result = transcription.align(result, audio)
-        update(job_id, stage='diarizing', progress=70)
+        update(job_id, stage='diarizing', progress=70, stage_timings=lap('transcribe'))
         segments = diarization.diarize(audio, duration, options)
-        update(job_id, stage='merging', progress=90)
+        update(job_id, stage='merging', progress=90, stage_timings=lap('diarize'))
         result = assign_speakers(segments, result)
         transcript = build_transcript(job_id, duration, result)
         transcript.update(transcription_engine=stt, diarization_engine=diar)
-        update(job_id, stage='completed', progress=100, transcript=transcript, error=None)
+        timings = lap('merge')
+        logger.info('Job %s: %.0fs audio in %.1fs (%.2fx real time) %s', job_id, duration, timings['total'],
+                    duration / timings['total'] if timings['total'] else 0, timings)
+        update(job_id, stage='completed', progress=100, transcript=transcript, error=None, stage_timings=timings)
     except Exception as exc:
         # Some upstream exceptions contain auth URLs/tokens. Never persist them.
         token = get_settings().hf_token
