@@ -225,8 +225,11 @@ Tests generate a tiny mono WAV in memory and include a generated WAV fixture.
 Backend tests cover content validation, limits, mock orchestration, chunk planning
 and timestamp offsetting, sub-word merging, speaker-count mapping, overlap
 assignment, Unknown handling, stage timings, the CHAT converter, cpWER, exports,
-speaker renaming, ranges, and deletion. Tests needing downloaded models skip
-automatically when the models are absent. API tests replace only queue
+speaker renaming, ranges, and deletion. Real-inference tests (silence, word
+timestamps on speech, chunk-edge consistency, exact speaker counts, a full job) skip
+automatically when the models are absent; with models present they take several
+minutes on a laptop CPU, so set SKIP_MODEL_TESTS=1 for quick runs. Speech checks use
+the Santa Barbara corpus SBC019 recording and CHAT file via SBC019_WAV / SBC019_CHA. API tests replace only queue
 submission and invoke the same worker function synchronously; a real Redis worker
 is used for the Docker smoke test. Frontend tests cover rendering, seek clicks,
 search highlights, and rename submission. No models or GPU are needed.
