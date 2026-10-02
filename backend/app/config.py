@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     models_dir: Path = Field(default_factory=lambda: default_data_root() / 'models')
     num_threads: int = Field(default_factory=physical_cores)
     max_chunk_sec: float = 60
+    # sherpa-onnx clustering distance threshold: larger merges more voices into fewer speakers.
+    diarization_threshold: float = 0.5
     # large-v3-turbo is several times faster on CPU with similar English accuracy.
     whisper_model: str = 'large-v3'
     # Court sessions often exceed eight participants; pyannote has no fixed cap.
@@ -70,19 +72,20 @@ class Settings(BaseSettings):
         return {'transcription_engine': transcription, 'diarization_engine': diarization,
                 'device': self.device, 'app_env': self.app_env,
                 'transcription_model': {'mock': 'MockEngine (synthetic dialogue)', 'whisperx': self.whisper_model, 'parakeet_onnx': 'nvidia/parakeet-tdt-0.6b-v2 (ONNX int8)', 'parakeet': 'Parakeet (TODO)'}.get(transcription, 'unknown'),
-                'diarization_model': {'mock': 'MockEngine (synthetic speakers)', 'pyannote': 'pyannote/speaker-diarization-community-1', 'nemotron': 'nvidia/Nemotron-3-Diarization (TODO)'}.get(diarization, 'unknown')}
+                'diarization_model': {'mock': 'MockEngine (synthetic speakers)', 'pyannote': 'pyannote/speaker-diarization-community-1', 'sherpa_onnx': 'pyannote-segmentation-3.0 + WeSpeaker ResNet34 (VoxCeleb, ONNX)', 'nemotron': 'nvidia/Nemotron-3-Diarization (TODO)'}.get(diarization, 'unknown')}
 
     def engine_issue(self) -> str | None:
         """Why the configured engines cannot run in this process, or None if they can."""
         transcription, diarization = self.active_engines()
         if transcription not in {'mock', 'whisperx', 'parakeet', 'parakeet_onnx'}:
             return f'Unknown TRANSCRIPTION_ENGINE "{transcription}"'
-        if diarization not in {'mock', 'pyannote', 'nemotron'}:
+        if diarization not in {'mock', 'pyannote', 'nemotron', 'sherpa_onnx'}:
             return f'Unknown DIARIZATION_ENGINE "{diarization}"'
         if transcription == 'parakeet' or diarization == 'nemotron':
             return 'Parakeet/Nemotron engines are not implemented yet'
-        if transcription == 'parakeet_onnx' and find_spec('sherpa_onnx') is None:
-            return 'sherpa-onnx is not installed: pip install -r backend/requirements-cpu.txt'
+        if transcription == 'parakeet_onnx' or diarization == 'sherpa_onnx':
+            if find_spec('sherpa_onnx') is None:
+                return 'sherpa-onnx is not installed: pip install -r backend/requirements-cpu.txt'
         if transcription == 'whisperx' or diarization == 'pyannote':
             if find_spec('whisperx') is None:
                 return 'WhisperX is not installed: pip install -r backend/requirements-models.txt'

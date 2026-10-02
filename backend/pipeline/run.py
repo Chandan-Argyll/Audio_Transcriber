@@ -28,6 +28,9 @@ def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
         raise ValueError(f'Unknown transcription engine: {stt}')
     if diar == 'mock':
         diarization = MockEngine()
+    elif diar == 'sherpa_onnx':
+        from pipeline.engines.sherpa_diarization import SherpaOnnxDiarizationEngine
+        diarization = SherpaOnnxDiarizationEngine()
     elif diar == 'pyannote':
         from pipeline.engines.pyannote_engine import PyannoteEngine
         diarization = PyannoteEngine()

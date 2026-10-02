@@ -6,24 +6,11 @@ from typing import Any
 import numpy as np
 
 from app.config import get_settings
+from pipeline.audio import SAMPLE_RATE, read_wav, to_float
 from pipeline.chunking import offset_words, merge_tokens, plan_chunks, quietest_point
 from pipeline.model_store import ensure_model
 
 logger = logging.getLogger('thread.parakeet')
-SAMPLE_RATE = 16000
-
-
-def read_wav(audio: Path) -> np.ndarray:
-    """16 kHz mono int16 samples (half the memory of float32 for multi-hour hearings)."""
-    import soundfile
-    samples, rate = soundfile.read(str(audio), dtype='int16', always_2d=False)
-    if rate != SAMPLE_RATE or samples.ndim != 1:
-        raise ValueError(f'Expected 16 kHz mono audio, got {rate} Hz with shape {samples.shape}')
-    return samples
-
-
-def to_float(samples: np.ndarray) -> np.ndarray:
-    return samples.astype(np.float32) / 32768
 
 
 def detect_speech(samples: np.ndarray) -> list[tuple[float, float]]:
