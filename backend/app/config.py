@@ -38,13 +38,14 @@ ENGINE_PRESETS = {'cpu': ('parakeet_onnx', 'sherpa_onnx'), 'whisperx': ('whisper
 class Settings(BaseSettings):
     # Read repository settings even when local commands run from backend/.
     model_config = SettingsConfigDict(env_file=(Path(__file__).resolve().parents[2] / '.env', '.env'), extra='ignore')
-    database_url: str = 'sqlite:///./data/jobs.db'
+    # Defaults live outside synced folders: OneDrive locks and syncing corrupt SQLite.
+    database_url: str = Field(default_factory=lambda: f"sqlite:///{(default_data_root() / 'jobs.db').as_posix()}")
     redis_url: str = 'redis://127.0.0.1:6379/0'
     rq_queue_name: str = 'audio-transcriber'
     # redis: separate RQ worker (Compose/production). local: run jobs on a
     # background thread inside the API, so native dev needs no Redis or worker.
     queue_backend: Literal['redis', 'local'] = 'redis'
-    storage_dir: Path = Path('data/files')
+    storage_dir: Path = Field(default_factory=lambda: default_data_root() / 'files')
     engine: str | None = None
     app_env: Literal['development', 'production'] = 'development'
     transcription_engine: str | None = None

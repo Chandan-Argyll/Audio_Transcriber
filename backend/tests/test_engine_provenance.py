@@ -86,3 +86,17 @@ def test_cpu_engines_are_the_default_and_explicit_engines_win(monkeypatch):
     assert Settings(_env_file=None, transcription_engine='', diarization_engine='pyannote').active_engines() == ('parakeet_onnx', 'pyannote')
     assert 'Unknown TRANSCRIPTION_ENGINE "nemo"' in Settings(_env_file=None, engine='nemo').engine_issue()
     Settings(_env_file=None, app_env='production').require_safe_worker()
+
+
+def test_data_defaults_live_outside_synced_folders(monkeypatch, tmp_path):
+    for name in ('DATABASE_URL', 'STORAGE_DIR', 'MODELS_DIR'):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    settings = Settings(_env_file=None)
+    root = tmp_path / 'transcriber'
+    assert settings.database_url == f'sqlite:///{(root / "jobs.db").as_posix()}'
+    assert settings.storage_dir == root / 'files'
+    assert settings.models_dir == root / 'models'
+    monkeypatch.delenv('LOCALAPPDATA')
+    monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg'))
+    assert Settings(_env_file=None).storage_dir == tmp_path / 'xdg' / 'transcriber' / 'files'
