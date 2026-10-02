@@ -5,7 +5,7 @@ from app.config import get_settings
 
 
 class WhisperXEngine:
-    """Lazy, per-worker cached large-v3 transcription and English alignment."""
+    """Lazy, per-worker cached Whisper (WHISPER_MODEL) transcription and English alignment."""
     def __init__(self) -> None:
         self.model: Any = None
         self.alignment: Any = None
@@ -15,7 +15,7 @@ class WhisperXEngine:
         import whisperx
         settings = get_settings()
         if self.model is None:
-            self.model = whisperx.load_model('large-v3', settings.device, compute_type=settings.compute_type, language='en')
+            self.model = whisperx.load_model(settings.whisper_model, settings.device, compute_type=settings.compute_type, language='en')
         elif settings.free_gpu_memory and settings.device == 'cuda':
             self.model.model.model.load_model()
         if settings.free_gpu_memory and self.alignment is not None:

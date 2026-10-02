@@ -18,9 +18,9 @@ class PyannoteEngine:
             self.model = DiarizationPipeline(model_name='pyannote/speaker-diarization-community-1', token=settings.hf_token, device=settings.device)
         else:
             self.model.model.to(torch.device(settings.device))
-        limits = options or {'min_speakers': 1, 'max_speakers': 8}
+        limits = dict(options)
         if 'num_speakers' not in limits:
-            limits = {'min_speakers': 1, 'max_speakers': 8, **limits}
+            limits = {'min_speakers': 1, 'max_speakers': settings.max_speakers, **limits}
         result = self.model(whisperx.load_audio(str(audio)), **limits)
         if settings.free_gpu_memory and settings.device == 'cuda':
             self.model.model.to(torch.device('cpu'))

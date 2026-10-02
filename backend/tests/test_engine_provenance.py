@@ -52,6 +52,7 @@ def test_startup_log_never_contains_token(monkeypatch, caplog):
     from worker import main
     settings = Settings(_env_file=None, engine='whisperx', transcription_engine='whisperx', diarization_engine='pyannote', device='cuda', hf_token='do-not-log-this-token')
     monkeypatch.setattr(main, 'get_settings', lambda: settings)
+    monkeypatch.setattr('app.config.find_spec', lambda name: object())
     def stop_after_log():
         raise RuntimeError('test stops startup')
     monkeypatch.setattr(main, 'init_db', stop_after_log)

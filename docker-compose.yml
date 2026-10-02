@@ -22,6 +22,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/jobs.db}
       REDIS_URL: redis://redis:6379/0
       RQ_QUEUE_NAME: audio-transcriber
+      QUEUE_BACKEND: redis
+      MAX_SPEAKERS: ${MAX_SPEAKERS:-20}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
       STORAGE_DIR: /app/data/files
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
       MAX_DURATION_SEC: ${MAX_DURATION_SEC:-10800}

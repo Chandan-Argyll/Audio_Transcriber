@@ -9,7 +9,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Job, SessionLocal
-from app.queue import queue, safe_redis_endpoint
+from app.queue import job_timeout, queue, safe_redis_endpoint, submit_local
 from app.schemas import JobOut, Transcript
 from app.storage import storage
 from pipeline.exporters import export
@@ -21,8 +21,11 @@ logger = logging.getLogger('thread.jobs')
 
 def enqueue(job_id: str) -> None:
     settings = get_settings()
+    if settings.queue_backend == 'local':
+        submit_local(job_id)
+        return
     try:
-        queue().enqueue('pipeline.run.run_job', job_id, job_id=job_id, job_timeout=settings.job_timeout_sec)
+        queue().enqueue('pipeline.run.run_job', job_id, job_id=job_id, job_timeout=job_timeout(job_id))
     except Exception as exc:
         logger.exception(
             'Failed to enqueue job %s on queue %s at %s (%s)',
@@ -43,9 +46,15 @@ def find_job(session: Session, job_id: str) -> Job:
 
 @router.post('', response_model=JobOut, status_code=202)
 def create_job(file: UploadFile = File(...), num_speakers: int | None = Form(None), min_speakers: int | None = Form(None), max_speakers: int | None = Form(None)) -> Job:
+    settings = get_settings()
+    # In local mode inference runs in this process, so a missing model or token
+    # would only surface after a long upload; refuse up front instead.
+    if settings.queue_backend == 'local' and (issue := settings.engine_issue()):
+        raise HTTPException(503, f'Transcription engine not ready: {issue}')
+    limit = settings.max_speakers
     options = {k: v for k, v in {'num_speakers': num_speakers, 'min_speakers': min_speakers, 'max_speakers': max_speakers}.items() if v is not None}
-    if any(not 1 <= n <= 8 for n in options.values()) or (min_speakers or 1) > (max_speakers or 8) or (num_speakers is not None and (min_speakers is not None or max_speakers is not None)):
-        raise HTTPException(400, 'Use an exact count OR a min/max range, between 1 and 8')
+    if any(not 1 <= n <= limit for n in options.values()) or (min_speakers or 1) > (max_speakers or limit) or (num_speakers is not None and (min_speakers is not None or max_speakers is not None)):
+        raise HTTPException(400, f'Use an exact count OR a min/max range, between 1 and {limit}')
     job_id = str(uuid4())
     target = storage.path(job_id, 'original')
     size = 0

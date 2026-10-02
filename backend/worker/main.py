@@ -10,6 +10,8 @@ def main() -> None:
     settings.require_safe_worker()
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
     logging.getLogger('thread.worker').info('Active worker: %s; HF_TOKEN present=%s', settings.engine_info(), bool(settings.hf_token))
+    if issue := settings.engine_issue():
+        raise RuntimeError(f'Worker refused to start: {issue}')
     init_db()
     connection = redis_connection()
     endpoint = safe_redis_endpoint(settings.redis_url)

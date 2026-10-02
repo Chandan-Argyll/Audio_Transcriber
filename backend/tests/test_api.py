@@ -33,7 +33,7 @@ def test_full_mock_flow(client, wav_bytes, monkeypatch):
 def test_bad_files_options_limits(client, wav_bytes, monkeypatch):
     monkeypatch.setattr(jobs, 'enqueue', lambda _: None)
     assert client.post('/api/jobs', files={'file': ('fake.wav', b'not audio')}).status_code == 400
-    assert client.post('/api/jobs', files={'file': ('a.wav', wav_bytes)}, data={'num_speakers': '9'}).status_code == 400
+    assert client.post('/api/jobs', files={'file': ('a.wav', wav_bytes)}, data={'num_speakers': '21'}).status_code == 400
     assert client.post('/api/jobs', files={'file': ('a.wav', wav_bytes)}, data={'min_speakers': '5', 'max_speakers': '2'}).status_code == 400
     monkeypatch.setattr(get_settings(), 'max_file_size_mb', 0)
     assert client.post('/api/jobs', files={'file': ('a.wav', wav_bytes)}).status_code == 413

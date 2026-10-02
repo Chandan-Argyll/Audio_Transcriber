@@ -21,3 +21,16 @@ it('does not claim a real engine when health is unavailable',async()=>{
   render(<App/>);
   await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent('Engine status unavailable'));
 });
+it('explains a missing real engine and blocks upload',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({transcription_engine:'whisperx',diarization_engine:'pyannote',device:'cpu',app_env:'development',queue_status:'ready',worker_count:1,queue_backend:'local',engine_issue:'HF_TOKEN is missing',max_speakers:20})}));
+  render(<App/>);
+  await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent('engine not ready'));
+  expect(screen.getByRole('alert')).toHaveTextContent('HF_TOKEN is missing');
+  expect(screen.getByRole('button',{name:/Engine not ready/})).toBeDisabled();
+  expect(screen.getByRole('option',{name:/1–20 voices/})).toBeInTheDocument();
+});
+it('tells the user when the backend API is offline',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockRejectedValue(new Error('offline')));
+  render(<App/>);
+  await waitFor(()=>expect(screen.getByRole('alert')).toHaveTextContent('backend API is not reachable'));
+});

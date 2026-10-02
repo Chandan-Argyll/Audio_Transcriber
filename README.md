@@ -138,6 +138,17 @@ python -m venv .venv
 pip install -r backend/requirements-dev.txt
 ```
 
+**Native Windows without Docker or Redis:** set `QUEUE_BACKEND=local` in the root
+`.env` and run `powershell -ExecutionPolicy Bypass -File scripts\start-local.ps1`.
+Jobs run one at a time on a background thread inside the API (models stay cached),
+unfinished jobs are resumed when the API restarts, and the script starts uvicorn on
+`API_PORT` and points the Vite proxy at that same port. In local mode, `/api/health`
+reports `engine_issue` (for example WhisperX not installed or `HF_TOKEN` missing), and
+uploads are refused with that reason. A Redis worker started with a real engine that
+cannot load refuses to start. On CPU-only machines, consider
+`WHISPER_MODEL=large-v3-turbo`. `MAX_SPEAKERS` (default 20) caps both explicit
+speaker counts and auto-detection.
+
 Choose one topology and keep its API, database, files, Redis, and worker together.
 The normal and recommended mode is full Compose: `docker compose up --build` and
 open its configured frontend port. For a native API and worker, start a dedicated

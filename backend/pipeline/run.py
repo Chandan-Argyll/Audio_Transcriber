@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Any
 from app.config import get_settings
-from app.models import Job, SessionLocal, init_db
+from app.models import Job, SessionLocal
 from app.storage import storage
 from pipeline.engines.base import DiarizationEngine, TranscriptionEngine
 from pipeline.engines.mock import MockEngine
@@ -48,7 +48,6 @@ def update(job_id: str, **values: Any) -> bool:
 
 
 def run_job(job_id: str) -> None:
-    init_db()
     with SessionLocal() as session:
         job = session.get(Job, job_id)
         if job is None:
@@ -62,7 +61,7 @@ def run_job(job_id: str) -> None:
         update(job_id, transcription_engine=stt, diarization_engine=diar)
         update(job_id, stage='preprocessing', progress=10)
         audio = storage.path(job_id, 'normalized.wav')
-        normalize(storage.path(job_id, 'original'), audio)
+        normalize(storage.path(job_id, 'original'), audio, duration)
         transcription, diarization = engines()
         update(job_id, stage='transcribing', progress=25)
         result = transcription.transcribe(audio, duration)

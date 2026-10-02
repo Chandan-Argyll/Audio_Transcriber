@@ -22,5 +22,6 @@ def probe(path: Path) -> float:
         raise ValueError('Invalid media file: ffprobe could not read audio') from exc
 
 
-def normalize(source: Path, target: Path) -> None:
-    subprocess.run([get_settings().ffmpeg_binary, '-nostdin', '-v', 'error', '-y', '-i', str(source), '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(target)], capture_output=True, timeout=600, check=True)
+def normalize(source: Path, target: Path, duration: float = 0) -> None:
+    # Decoding a multi-hour video can exceed a fixed ten-minute limit on slow disks.
+    subprocess.run([get_settings().ffmpeg_binary, '-nostdin', '-v', 'error', '-y', '-i', str(source), '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(target)], capture_output=True, timeout=max(600, duration), check=True)
