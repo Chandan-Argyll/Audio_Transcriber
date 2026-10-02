@@ -153,6 +153,10 @@ docker run --rm -p 127.0.0.1:6380:6379 redis:7-alpine
 Do not point a native API at Compose's internal `redis` hostname, and do not share
 another project's default RQ queue. `/api/health` reports `ready`, `no_worker`, or
 `unavailable`; the UI disables upload until a worker listens on the configured queue.
+The Vite server uses strict port binding: if 5173 is occupied it exits with a clear
+error instead of silently moving onto the Compose frontend port. Stop the existing
+frontend or intentionally pass a free port; do not run native and Compose frontends
+on the same host port.
 
 ```sh
 cd backend

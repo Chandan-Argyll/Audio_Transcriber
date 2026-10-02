@@ -8,7 +8,7 @@ export default defineConfig(({mode})=>{
   const target=env.API_PROXY_TARGET||`http://127.0.0.1:${env.API_PORT||'8000'}`;
   return {
     plugins:[react()],
-    server:{proxy:{'/api':{
+    server:{host:'0.0.0.0',port:5173,strictPort:true,proxy:{'/api':{
       target,changeOrigin:true,
       configure(proxy){
         proxy.on('error',(_error,_request,res)=>{

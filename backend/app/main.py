@@ -19,6 +19,12 @@ app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins.spl
 app.include_router(router)
 
 
+@app.get('/api/live')
+def live() -> dict[str, str]:
+    """Process liveness only; deliberately has no Redis/model dependencies."""
+    return {'status': 'ok'}
+
+
 @app.get('/api/health')
 def health() -> dict[str, str | int]:
     settings = get_settings()

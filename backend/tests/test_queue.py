@@ -15,10 +15,10 @@ class RedisUp:
 def test_queue_health_ready_and_no_worker(monkeypatch):
     monkeypatch.setattr(queue_module, 'redis_connection', lambda: RedisUp())
     worker = SimpleNamespace(queues=[SimpleNamespace(name=get_settings().rq_queue_name)])
-    monkeypatch.setattr(queue_module.Worker, 'all', lambda connection: [worker])
+    monkeypatch.setattr(queue_module.Worker, 'all', lambda connection, queue: [worker])
     assert queue_module.queue_health()['queue_status'] == 'ready'
     assert queue_module.queue_health()['worker_count'] == 1
-    monkeypatch.setattr(queue_module.Worker, 'all', lambda connection: [])
+    monkeypatch.setattr(queue_module.Worker, 'all', lambda connection, queue: [])
     assert queue_module.queue_health()['queue_status'] == 'no_worker'
 
 

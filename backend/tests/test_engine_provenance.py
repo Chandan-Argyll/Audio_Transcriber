@@ -71,3 +71,4 @@ def test_health_exposes_engines_device_without_secret(client, monkeypatch):
     assert data['queue_status'] == 'ready'
     assert data['worker_count'] == 1
     assert 'hf_token' not in data
+    assert client.get('/api/live').json() == {'status': 'ok'}

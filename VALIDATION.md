@@ -25,6 +25,21 @@ and deletion. Backend tests cover ready/no-worker/unavailable health states,
 credential-safe Redis endpoints, and visible enqueue errors. The UI disables upload
 when Redis or the worker is unavailable.
 
+## Port binding and liveness
+
+Vite now binds to its configured port strictly, so a duplicate frontend exits with
+an explicit port-in-use error instead of silently moving from 5173 to 5174. Compose
+uses the dependency-free `/api/live` endpoint for API process health, while
+`/api/health` continues to report Redis/RQ worker readiness. RQ worker discovery is
+scoped directly to the configured queue and Redis checks have one-second socket
+timeouts. Verified after this change: 22 backend tests passed (two integration
+tests skipped), 11 frontend tests passed, the production frontend build passed,
+and `docker compose config --quiet` passed.
+
+Runtime recreation could not be completed during the final check because Docker
+Desktop's WSL backend became stuck while starting and required an Administrator
+service reset. Source validation above does not depend on that unavailable runtime.
+
 ## Initial build
 
 Verified on October 2, 2026 with `ENGINE=mock`:
@@ -44,7 +59,7 @@ Verified on October 2, 2026 with `ENGINE=mock`:
 - Compose CPU and GPU override files validate with `docker compose ... config`.
 - Frontend dependency audit: zero reported vulnerabilities at installation.
 
-The local `.env` selects host ports 5174 and 8001 because existing applications use
+The local `.env` selects host ports 5174 and 8002 because existing applications use
 5173 and 8000. Those applications were left running. Repository defaults remain
 5173 and 8000. `.env` is ignored by Git and contains no token.
 
