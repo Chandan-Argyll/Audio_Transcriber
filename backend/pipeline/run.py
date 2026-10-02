@@ -15,6 +15,9 @@ def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
     stt, diar = settings.active_engines()
     if stt == 'mock':
         transcription = MockEngine()
+    elif stt == 'parakeet_onnx':
+        from pipeline.engines.parakeet_onnx import ParakeetOnnxEngine
+        transcription = ParakeetOnnxEngine()
     elif stt == 'whisperx':
         from pipeline.engines.whisperx_engine import WhisperXEngine
         transcription = WhisperXEngine()

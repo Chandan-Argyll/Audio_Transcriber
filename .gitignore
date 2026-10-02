@@ -9,3 +9,8 @@ data/
 *.pyc
 coverage/
 *.tsbuildinfo
+
+# Downloaded model weights (MODELS_DIR) must never be committed.
+models/
+*.onnx
+*.tar.bz2

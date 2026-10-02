@@ -1,0 +1,7 @@
+-r requirements.txt
+# CPU-first inference (default): Parakeet TDT + sherpa-onnx diarization, no PyTorch.
+sherpa-onnx>=1.12,<2
+numpy>=1.26,<3
+soundfile>=0.12,<1
+# Detects physical cores for the NUM_THREADS default.
+psutil>=5.9,<8

@@ -11,6 +11,9 @@ os.environ['ENGINE'] = 'mock'
 os.environ['APP_ENV'] = 'development'
 os.environ['TRANSCRIPTION_ENGINE'] = 'mock'
 os.environ['DIARIZATION_ENGINE'] = 'mock'
+# Tests must not inherit a developer's root .env (e.g. QUEUE_BACKEND=local).
+os.environ['QUEUE_BACKEND'] = 'redis'
+os.environ['MAX_SPEAKERS'] = '20'
 
 import pytest
 from fastapi.testclient import TestClient

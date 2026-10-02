@@ -1,8 +1,24 @@
+import os
 from functools import lru_cache
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Literal
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def default_data_root() -> Path:
+    """Per-user app data outside synced folders such as OneDrive: %LOCALAPPDATA%/transcriber."""
+    base = os.environ.get('LOCALAPPDATA') or os.environ.get('XDG_DATA_HOME') or Path.home() / '.local' / 'share'
+    return Path(base) / 'transcriber'
+
+
+def physical_cores() -> int:
+    try:
+        import psutil
+        return psutil.cpu_count(logical=False) or os.cpu_count() or 1
+    except ImportError:
+        return os.cpu_count() or 1
 
 
 class Settings(BaseSettings):
@@ -20,6 +36,11 @@ class Settings(BaseSettings):
     transcription_engine: str | None = None
     diarization_engine: str | None = None
     hf_token: str | None = None
+    # sherpa-onnx CPU engines: model downloads, ONNX Runtime threads, and the
+    # longest audio chunk handed to Parakeet (chunks are cut at VAD silences).
+    models_dir: Path = Field(default_factory=lambda: default_data_root() / 'models')
+    num_threads: int = Field(default_factory=physical_cores)
+    max_chunk_sec: float = 60
     # large-v3-turbo is several times faster on CPU with similar English accuracy.
     whisper_model: str = 'large-v3'
     # Court sessions often exceed eight participants; pyannote has no fixed cap.
@@ -48,18 +69,20 @@ class Settings(BaseSettings):
         transcription, diarization = self.active_engines()
         return {'transcription_engine': transcription, 'diarization_engine': diarization,
                 'device': self.device, 'app_env': self.app_env,
-                'transcription_model': {'mock': 'MockEngine (synthetic dialogue)', 'whisperx': self.whisper_model, 'parakeet': 'Parakeet (TODO)'}.get(transcription, 'unknown'),
+                'transcription_model': {'mock': 'MockEngine (synthetic dialogue)', 'whisperx': self.whisper_model, 'parakeet_onnx': 'nvidia/parakeet-tdt-0.6b-v2 (ONNX int8)', 'parakeet': 'Parakeet (TODO)'}.get(transcription, 'unknown'),
                 'diarization_model': {'mock': 'MockEngine (synthetic speakers)', 'pyannote': 'pyannote/speaker-diarization-community-1', 'nemotron': 'nvidia/Nemotron-3-Diarization (TODO)'}.get(diarization, 'unknown')}
 
     def engine_issue(self) -> str | None:
         """Why the configured engines cannot run in this process, or None if they can."""
         transcription, diarization = self.active_engines()
-        if transcription not in {'mock', 'whisperx', 'parakeet'}:
+        if transcription not in {'mock', 'whisperx', 'parakeet', 'parakeet_onnx'}:
             return f'Unknown TRANSCRIPTION_ENGINE "{transcription}"'
         if diarization not in {'mock', 'pyannote', 'nemotron'}:
             return f'Unknown DIARIZATION_ENGINE "{diarization}"'
         if transcription == 'parakeet' or diarization == 'nemotron':
             return 'Parakeet/Nemotron engines are not implemented yet'
+        if transcription == 'parakeet_onnx' and find_spec('sherpa_onnx') is None:
+            return 'sherpa-onnx is not installed: pip install -r backend/requirements-cpu.txt'
         if transcription == 'whisperx' or diarization == 'pyannote':
             if find_spec('whisperx') is None:
                 return 'WhisperX is not installed: pip install -r backend/requirements-models.txt'
