@@ -40,6 +40,14 @@ Runtime recreation could not be completed during the final check because Docker
 Desktop's WSL backend became stuck while starting and required an Administrator
 service reset. Source validation above does not depend on that unavailable runtime.
 
+## Windows storage cleanup
+
+Local job deletion now handles nested artifacts, read-only files, and transient
+Windows/OneDrive locks with bounded retries. It does not recreate missing folders
+or follow a job-directory symlink. The full backend suite passed with 26 tests and
+three optional tests skipped. Retrying the previously failed delete through the
+running API returned HTTP 204 and removed the stale job record.
+
 ## Initial build
 
 Verified on October 2, 2026 with `ENGINE=mock`:
