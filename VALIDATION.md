@@ -1,5 +1,53 @@
 # Validation
 
+## CPU-first pipeline (October 2, 2026)
+
+Machine: Windows 11 laptop, Intel i7-13620H (6 performance + 4 efficiency cores,
+16 threads), 16 GB RAM, no NVIDIA GPU, `NUM_THREADS=10` (physical-core default).
+
+Tests: 64 backend tests pass in a quick run (`SKIP_MODEL_TESTS=1`), plus 5 real
+sherpa-onnx inference tests that pass with downloaded models; 13 frontend tests pass.
+Skipped: the MeetEval cross-check (MeetEval cannot be built here), the opt-in
+WhisperX test, and a symlink test needing admin rights. The live app in local queue
+mode reported `parakeet_onnx` / `sherpa_onnx` ready, created its database under
+`%LOCALAPPDATA%\transcriber`, and completed a real job with stage timings.
+
+SBC019 (Santa Barbara corpus, 21.8 min, 5 speakers), reference from `SBC019.cha`
+via `eval.chat` (1,099 turns, 4,114 words):
+
+| Engines | WER | DER | cpWER | Processing | Speed |
+|---|---|---|---|---|---|
+| parakeet_onnx + sherpa_onnx | 28.6% | 76.2% | 105.8% | 3,535 s | 0.37x |
+| parakeet_onnx + pyannote | skipped: PyTorch not installable (see below) | | | | |
+
+The full run was partly on battery and shared the CPU with other test runs, so its
+speed is pessimistic. Threshold clustering (0.5) produced 19 speakers for 5, which
+drives DER and cpWER (extra speakers' words count as insertions). WER is inflated by
+numerals and contractions (gonna / going to) against spoken-form references.
+
+Uncontended on AC power, 5-minute excerpt (300-600 s, 5 reference speakers):
+Parakeet 1.32x real time; sherpa-onnx diarization about 1x real time:
+
+| Clustering | Speakers | DER |
+|---|---|---|
+| threshold 0.5 | 6 | 48.8% |
+| threshold 0.7 | 2 | 52.0% |
+| threshold 0.9 | 1 | 61.6% |
+| oracle count (5) | 4 | 48.5% |
+
+No threshold fixes diarization on this heavily overlapping family conversation, so
+the default stays 0.5; it has not been tuned on the test file. End to end the CPU
+pipeline runs at roughly 0.5-0.6x real time on this laptop, so a 3-hour hearing
+takes about 5-6 hours, with diarization (mostly segmentation) as the larger half.
+These are conversational-speech results; court recordings must be evaluated on
+their own references.
+
+Environment limits found: Windows Application Control blocked PyTorch's `c10.dll`
+(so pyannote could not run even with a token; no HF_TOKEN was available anyway) and
+a compiled build dependency of MeetEval; cpWER uses the built-in implementation,
+checked against MeetEval's definition. Parakeet decoding was fastest with 6 threads
+(the performance-core count) in a battery-powered benchmark; 10 or 16 were slower.
+
 ## Engine provenance and demo safeguards
 
 Added regression coverage for persistent per-job engine metadata (including JSON
