@@ -1,2 +1,4 @@
 -r requirements.txt
 whisperx==3.8.6
+# Read normalized WAVs for pyannote diarization.
+soundfile>=0.12,<1

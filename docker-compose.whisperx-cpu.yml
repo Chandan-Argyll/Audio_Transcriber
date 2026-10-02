@@ -1,0 +1,17 @@
+# Optional: WhisperX large-v3 + pyannote on CPU instead of the default ONNX engines.
+services:
+  api:
+    environment:
+      DEVICE: cpu
+      TRANSCRIPTION_ENGINE: whisperx
+      DIARIZATION_ENGINE: pyannote
+  worker:
+    build:
+      context: ./backend
+      target: models
+    environment:
+      DEVICE: cpu
+      COMPUTE_TYPE: int8
+      BATCH_SIZE: 2
+      TRANSCRIPTION_ENGINE: whisperx
+      DIARIZATION_ENGINE: pyannote

@@ -14,7 +14,7 @@ services:
       target: base
     ports: ["${API_PORT:-8000}:8000"]
     environment: &app-env
-      ENGINE: ${ENGINE:-mock}
+      ENGINE: ${ENGINE:-}
       APP_ENV: ${APP_ENV:-development}
       DEVICE: ${DEVICE:-cpu}
       TRANSCRIPTION_ENGINE: ${TRANSCRIPTION_ENGINE:-}
@@ -42,7 +42,7 @@ services:
   worker:
     build:
       context: ./backend
-      target: base
+      target: cpu
     command: python -m worker.main
     environment:
       <<: *app-env
@@ -52,6 +52,10 @@ services:
       BATCH_SIZE: ${BATCH_SIZE:-2}
       FREE_GPU_MEMORY: ${FREE_GPU_MEMORY:-false}
       HF_HOME: /models
+      MODELS_DIR: /models/sherpa-onnx
+      NUM_THREADS: ${NUM_THREADS:-}
+      MAX_CHUNK_SEC: ${MAX_CHUNK_SEC:-60}
+      DIARIZATION_THRESHOLD: ${DIARIZATION_THRESHOLD:-0.5}
     volumes: [app-data:/app/data, model-cache:/models]
     depends_on:
       api: {condition: service_healthy}

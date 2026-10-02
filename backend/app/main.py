@@ -35,7 +35,7 @@ def health() -> dict[str, str | int | None]:
     engine_issue = settings.engine_issue() if settings.queue_backend == 'local' else None
     return {
         'status': 'ok' if queue['queue_status'] == 'ready' and not engine_issue else 'degraded',
-        'engine': settings.engine,
+        'engine': settings.engine or 'cpu',
         **settings.engine_info(),
         'queue_status': queue['queue_status'],
         'worker_count': queue['worker_count'],

@@ -3,7 +3,7 @@ from functools import lru_cache
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Literal
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +29,12 @@ def installed(module: str) -> bool:
         return False
 
 
+TRANSCRIPTION_ENGINES = ('parakeet_onnx', 'whisperx', 'mock')
+DIARIZATION_ENGINES = ('sherpa_onnx', 'pyannote', 'mock')
+# Legacy ENGINE shorthand; TRANSCRIPTION_ENGINE / DIARIZATION_ENGINE always win.
+ENGINE_PRESETS = {'cpu': ('parakeet_onnx', 'sherpa_onnx'), 'whisperx': ('whisperx', 'pyannote'), 'mock': ('mock', 'mock')}
+
+
 class Settings(BaseSettings):
     # Read repository settings even when local commands run from backend/.
     model_config = SettingsConfigDict(env_file=(Path(__file__).resolve().parents[2] / '.env', '.env'), extra='ignore')
@@ -39,7 +45,7 @@ class Settings(BaseSettings):
     # background thread inside the API, so native dev needs no Redis or worker.
     queue_backend: Literal['redis', 'local'] = 'redis'
     storage_dir: Path = Path('data/files')
-    engine: str = 'mock'
+    engine: str | None = None
     app_env: Literal['development', 'production'] = 'development'
     transcription_engine: str | None = None
     diarization_engine: str | None = None
@@ -67,30 +73,35 @@ class Settings(BaseSettings):
     ffmpeg_binary: str = 'ffmpeg'
     ffprobe_binary: str = 'ffprobe'
 
+    @field_validator('num_threads', mode='before')
+    @classmethod
+    def default_threads(cls, value: object) -> object:
+        # Compose passes NUM_THREADS= when unset; empty means "use physical cores".
+        return physical_cores() if value in ('', None) else value
+
     def active_engines(self) -> tuple[str, str]:
-        return (self.transcription_engine or self.engine,
-                self.diarization_engine or ('pyannote' if self.engine == 'whisperx' else self.engine))
+        # An unknown ENGINE value passes through so engine_issue() can name it.
+        preset = ENGINE_PRESETS.get(self.engine or 'cpu', (self.engine, self.engine))
+        return self.transcription_engine or preset[0], self.diarization_engine or preset[1]
 
     def require_safe_worker(self) -> None:
         if self.app_env == 'production' and (self.engine == 'mock' or 'mock' in self.active_engines()):
-            raise RuntimeError('Worker refused to start: MockEngine is forbidden when APP_ENV=production. Set ENGINE=whisperx and remove mock engine overrides.')
+            raise RuntimeError('Worker refused to start: MockEngine is forbidden when APP_ENV=production. Set TRANSCRIPTION_ENGINE=parakeet_onnx and DIARIZATION_ENGINE=sherpa_onnx and remove ENGINE=mock.')
 
     def engine_info(self) -> dict[str, str]:
         transcription, diarization = self.active_engines()
         return {'transcription_engine': transcription, 'diarization_engine': diarization,
                 'device': self.device, 'app_env': self.app_env,
-                'transcription_model': {'mock': 'MockEngine (synthetic dialogue)', 'whisperx': self.whisper_model, 'parakeet_onnx': 'nvidia/parakeet-tdt-0.6b-v2 (ONNX int8)', 'parakeet': 'Parakeet (TODO)'}.get(transcription, 'unknown'),
-                'diarization_model': {'mock': 'MockEngine (synthetic speakers)', 'pyannote': 'pyannote/speaker-diarization-community-1', 'sherpa_onnx': 'pyannote-segmentation-3.0 + WeSpeaker ResNet34 (VoxCeleb, ONNX)', 'nemotron': 'nvidia/Nemotron-3-Diarization (TODO)'}.get(diarization, 'unknown')}
+                'transcription_model': {'mock': 'MockEngine (synthetic dialogue)', 'whisperx': self.whisper_model, 'parakeet_onnx': 'nvidia/parakeet-tdt-0.6b-v2 (ONNX int8)'}.get(transcription, 'unknown'),
+                'diarization_model': {'mock': 'MockEngine (synthetic speakers)', 'pyannote': 'pyannote/speaker-diarization-community-1', 'sherpa_onnx': 'pyannote-segmentation-3.0 + WeSpeaker ResNet34 (VoxCeleb, ONNX)'}.get(diarization, 'unknown')}
 
     def engine_issue(self) -> str | None:
         """Why the configured engines cannot run in this process, or None if they can."""
         transcription, diarization = self.active_engines()
-        if transcription not in {'mock', 'whisperx', 'parakeet', 'parakeet_onnx'}:
-            return f'Unknown TRANSCRIPTION_ENGINE "{transcription}"'
-        if diarization not in {'mock', 'pyannote', 'nemotron', 'sherpa_onnx'}:
-            return f'Unknown DIARIZATION_ENGINE "{diarization}"'
-        if transcription == 'parakeet' or diarization == 'nemotron':
-            return 'Parakeet/Nemotron engines are not implemented yet'
+        if transcription not in TRANSCRIPTION_ENGINES:
+            return f'Unknown TRANSCRIPTION_ENGINE "{transcription}"; use {" | ".join(TRANSCRIPTION_ENGINES)}'
+        if diarization not in DIARIZATION_ENGINES:
+            return f'Unknown DIARIZATION_ENGINE "{diarization}"; use {" | ".join(DIARIZATION_ENGINES)}'
         if transcription == 'parakeet_onnx' or diarization == 'sherpa_onnx':
             if not installed('sherpa_onnx'):
                 return 'sherpa-onnx is not installed: pip install -r backend/requirements-cpu.txt'

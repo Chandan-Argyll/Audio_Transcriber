@@ -63,7 +63,7 @@ def test_engine_issue_detects_missing_models(monkeypatch):
     monkeypatch.setattr('app.config.find_spec', lambda name: None)
     assert 'not installed' in settings.engine_issue()
     monkeypatch.setattr(settings, 'transcription_engine', 'parakeet')
-    assert 'not implemented' in settings.engine_issue()
+    assert 'Unknown TRANSCRIPTION_ENGINE "parakeet"' in settings.engine_issue()
 
 
 def test_worker_refuses_to_start_when_engine_cannot_run(monkeypatch):

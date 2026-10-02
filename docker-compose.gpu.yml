@@ -2,6 +2,8 @@ services:
   api:
     environment:
       DEVICE: cuda
+      TRANSCRIPTION_ENGINE: whisperx
+      DIARIZATION_ENGINE: pyannote
   worker:
     build:
       context: ./backend
@@ -10,6 +12,8 @@ services:
     runtime: nvidia
     environment:
       DEVICE: cuda
+      TRANSCRIPTION_ENGINE: whisperx
+      DIARIZATION_ENGINE: pyannote
       COMPUTE_TYPE: ${COMPUTE_TYPE:-float16}
       BATCH_SIZE: ${BATCH_SIZE:-4}
     deploy:

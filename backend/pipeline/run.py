@@ -21,9 +21,6 @@ def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
     elif stt == 'whisperx':
         from pipeline.engines.whisperx_engine import WhisperXEngine
         transcription = WhisperXEngine()
-    elif stt == 'parakeet':
-        from pipeline.engines.stubs import ParakeetEngine
-        transcription = ParakeetEngine()
     else:
         raise ValueError(f'Unknown transcription engine: {stt}')
     if diar == 'mock':
@@ -34,9 +31,6 @@ def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
     elif diar == 'pyannote':
         from pipeline.engines.pyannote_engine import PyannoteEngine
         diarization = PyannoteEngine()
-    elif diar == 'nemotron':
-        from pipeline.engines.stubs import NemotronDiarizationEngine
-        diarization = NemotronDiarizationEngine()
     else:
         raise ValueError(f'Unknown diarization engine: {diar}')
     return transcription, diarization

@@ -73,3 +73,16 @@ def test_health_exposes_engines_device_without_secret(client, monkeypatch):
     assert data['worker_count'] == 1
     assert 'hf_token' not in data
     assert client.get('/api/live').json() == {'status': 'ok'}
+
+
+def test_cpu_engines_are_the_default_and_explicit_engines_win(monkeypatch):
+    for name in ('ENGINE', 'TRANSCRIPTION_ENGINE', 'DIARIZATION_ENGINE'):
+        monkeypatch.delenv(name, raising=False)
+    assert Settings(_env_file=None).active_engines() == ('parakeet_onnx', 'sherpa_onnx')
+    assert Settings(_env_file=None, engine='mock').active_engines() == ('mock', 'mock')
+    assert Settings(_env_file=None, engine='whisperx').active_engines() == ('whisperx', 'pyannote')
+    assert Settings(_env_file=None, engine='mock', diarization_engine='sherpa_onnx').active_engines() == ('mock', 'sherpa_onnx')
+    # Empty values from .env / Compose (TRANSCRIPTION_ENGINE=) fall back to the defaults.
+    assert Settings(_env_file=None, transcription_engine='', diarization_engine='pyannote').active_engines() == ('parakeet_onnx', 'pyannote')
+    assert 'Unknown TRANSCRIPTION_ENGINE "nemo"' in Settings(_env_file=None, engine='nemo').engine_issue()
+    Settings(_env_file=None, app_env='production').require_safe_worker()
