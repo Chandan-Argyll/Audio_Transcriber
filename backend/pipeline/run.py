@@ -5,7 +5,7 @@ from app.models import Job, SessionLocal
 from app.storage import storage
 from pipeline.engines.base import DiarizationEngine, TranscriptionEngine
 from pipeline.engines.mock import MockEngine
-from pipeline.merge import assign_mock_speakers, build_transcript
+from pipeline.merge import assign_speakers, build_transcript
 from pipeline.preprocess import normalize
 
 
@@ -76,11 +76,7 @@ def run_job(job_id: str) -> None:
         update(job_id, stage='diarizing', progress=70)
         segments = diarization.diarize(audio, duration, options)
         update(job_id, stage='merging', progress=90)
-        if isinstance(segments, list):
-            result = assign_mock_speakers(segments, result)
-        else:
-            import whisperx
-            result = whisperx.assign_word_speakers(segments, result)
+        result = assign_speakers(segments, result)
         transcript = build_transcript(job_id, duration, result)
         transcript.update(transcription_engine=stt, diarization_engine=diar)
         update(job_id, stage='completed', progress=100, transcript=transcript, error=None)

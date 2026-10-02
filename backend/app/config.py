@@ -21,6 +21,14 @@ def physical_cores() -> int:
         return os.cpu_count() or 1
 
 
+def installed(module: str) -> bool:
+    """True if importable, without importing it (heavy packages such as torch stay unloaded)."""
+    try:
+        return find_spec(module) is not None
+    except ModuleNotFoundError:  # Parent package of a dotted name is missing.
+        return False
+
+
 class Settings(BaseSettings):
     # Read repository settings even when local commands run from backend/.
     model_config = SettingsConfigDict(env_file=(Path(__file__).resolve().parents[2] / '.env', '.env'), extra='ignore')
@@ -84,11 +92,12 @@ class Settings(BaseSettings):
         if transcription == 'parakeet' or diarization == 'nemotron':
             return 'Parakeet/Nemotron engines are not implemented yet'
         if transcription == 'parakeet_onnx' or diarization == 'sherpa_onnx':
-            if find_spec('sherpa_onnx') is None:
+            if not installed('sherpa_onnx'):
                 return 'sherpa-onnx is not installed: pip install -r backend/requirements-cpu.txt'
-        if transcription == 'whisperx' or diarization == 'pyannote':
-            if find_spec('whisperx') is None:
-                return 'WhisperX is not installed: pip install -r backend/requirements-models.txt'
+        if transcription == 'whisperx' and not installed('whisperx'):
+            return 'WhisperX is not installed: pip install -r backend/requirements-models.txt'
+        if diarization == 'pyannote' and not (installed('torch') and installed('pyannote.audio')):
+            return 'pyannote is optional and not installed: pip install -r backend/requirements-pyannote.txt'
         if diarization == 'pyannote' and not self.hf_token:
             return 'HF_TOKEN is missing; pyannote diarization needs a Hugging Face token'
         return None

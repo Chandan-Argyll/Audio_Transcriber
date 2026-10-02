@@ -1,12 +1,12 @@
 import json
 from pipeline.engines.mock import mock_segments
-from pipeline.merge import assign_mock_speakers, build_transcript
+from pipeline.merge import assign_speakers, build_transcript
 from pipeline.exporters import export, timestamp
 
 
 def test_exports_and_limits():
     result = {'segments': mock_segments(800)}
-    assign_mock_speakers([{'start': 0, 'end': 800, 'speaker': 'A'}], result)
+    assign_speakers([{'start': 0, 'end': 800, 'speaker': 'A'}], result)
     transcript = build_transcript('test', 800, result)
     transcript['speakers'][0]['label'] = 'Alice'
     assert '[00:00:00] Alice:' in export(transcript, 'txt')

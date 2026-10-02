@@ -9,7 +9,7 @@ from statistics import mean
 from typing import Any
 from app.config import get_settings
 from app.schemas import Transcript
-from pipeline.merge import assign_mock_speakers, build_transcript
+from pipeline.merge import assign_speakers, build_transcript
 from pipeline.preprocess import normalize, probe
 from pipeline.run import engines
 
@@ -55,11 +55,7 @@ def predict(audio: Path) -> dict[str, Any]:
         normalize(audio, wav)
         result = transcription.align(transcription.transcribe(wav, duration), wav)
         intervals = diarization.diarize(wav, duration, {})
-        if isinstance(intervals, list):
-            result = assign_mock_speakers(intervals, result)
-        else:
-            import whisperx
-            result = whisperx.assign_word_speakers(intervals, result)
+        result = assign_speakers(intervals, result)
         return build_transcript(audio.stem, duration, result)
 
 

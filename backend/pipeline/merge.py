@@ -6,8 +6,9 @@ def finite_time(value: Any, fallback: float) -> float:
     return float(value) if value is not None and isfinite(float(value)) else fallback
 
 
-def assign_mock_speakers(segments: list[dict[str, Any]], result: dict[str, Any]) -> dict[str, Any]:
-    """Match WhisperX's maximum intersection policy without ML dependencies."""
+def assign_speakers(segments: list[dict[str, Any]], result: dict[str, Any]) -> dict[str, Any]:
+    """Give each word the speaker with the largest total overlap (WhisperX's policy);
+    words overlapping no speaker stay unassigned and become Unknown."""
     for segment in result['segments']:
         for word in segment.get('words', []):
             if word.get('start') is None or word.get('end') is None:

@@ -8,7 +8,7 @@ import tempfile
 import wave
 from pathlib import Path
 from pipeline.engines.mock import MockEngine
-from pipeline.merge import assign_mock_speakers, build_transcript
+from pipeline.merge import assign_speakers, build_transcript
 
 
 def main() -> None:
@@ -22,7 +22,7 @@ def main() -> None:
             wav.writeframes(bytes(16000 * 2 * 20))
         engine = MockEngine()
         result = engine.align(engine.transcribe(audio, 20), audio)
-        result = assign_mock_speakers(engine.diarize(audio, 20, {}), result)
+        result = assign_speakers(engine.diarize(audio, 20, {}), result)
         reference = build_transcript('sample', 20, result)
         audio.with_suffix('.json').write_text(json.dumps(reference), encoding='utf-8')
         csv_path = folder / 'results.csv'

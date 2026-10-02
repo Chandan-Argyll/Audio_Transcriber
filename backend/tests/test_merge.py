@@ -1,4 +1,4 @@
-from pipeline.merge import assign_mock_speakers, build_transcript
+from pipeline.merge import assign_speakers, build_transcript
 
 
 def test_overlap_and_unknown():
@@ -7,7 +7,7 @@ def test_overlap_and_unknown():
         {'word': 'there', 'start': 1, 'end': 2},
         {'word': 'silence', 'start': 4, 'end': 5},
     ]}]}
-    assign_mock_speakers([{'start': 0, 'end': .2, 'speaker': 'A'}, {'start': .2, 'end': 2, 'speaker': 'B'}], result)
+    assign_speakers([{'start': 0, 'end': .2, 'speaker': 'A'}, {'start': .2, 'end': 2, 'speaker': 'B'}], result)
     transcript = build_transcript('test', 5, result)
     assert [s['id'] for s in transcript['speakers']] == ['B', 'Unknown']
     assert transcript['speakers'][0]['label'] == 'Person 1'
@@ -33,7 +33,7 @@ def test_unalignable_words_and_nonfinite_scores_are_preserved():
         {'word': '2026', 'start': None, 'end': None, 'score': float('nan')},
         {'word': 'works', 'start': 2, 'end': 3, 'speaker': 'A', 'score': .9},
     ]}]}
-    assign_mock_speakers([{'start': 1, 'end': 3, 'speaker': 'A'}], result)
+    assign_speakers([{'start': 1, 'end': 3, 'speaker': 'A'}], result)
     transcript = build_transcript('test', 4, result)
     assert transcript['turns'][0]['text'] == '2026'
     assert transcript['turns'][0]['speaker_id'] == 'Unknown'
