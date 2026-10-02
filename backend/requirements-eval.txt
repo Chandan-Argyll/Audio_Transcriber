@@ -1,4 +1,5 @@
--r requirements.txt
+-r requirements-cpu.txt
 jiwer>=4,<5
 pyannote.metrics>=4,<5
-meeteval>=0.4,<1
+# meeteval needs a C++ build on Windows; eval.evaluate computes the same cpWER without it.
+meeteval>=0.4,<1; sys_platform != "win32"

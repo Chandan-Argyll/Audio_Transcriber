@@ -12,30 +12,36 @@ from pipeline.preprocess import normalize
 
 
 @lru_cache
-def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
-    settings = get_settings()
-    stt, diar = settings.active_engines()
-    if stt == 'mock':
-        transcription = MockEngine()
-    elif stt == 'parakeet_onnx':
+def transcription_engine(name: str) -> TranscriptionEngine:
+    """One cached instance per engine name, so loaded models persist between jobs."""
+    if name == 'mock':
+        return MockEngine()
+    if name == 'parakeet_onnx':
         from pipeline.engines.parakeet_onnx import ParakeetOnnxEngine
-        transcription = ParakeetOnnxEngine()
-    elif stt == 'whisperx':
+        return ParakeetOnnxEngine()
+    if name == 'whisperx':
         from pipeline.engines.whisperx_engine import WhisperXEngine
-        transcription = WhisperXEngine()
-    else:
-        raise ValueError(f'Unknown transcription engine: {stt}')
-    if diar == 'mock':
-        diarization = MockEngine()
-    elif diar == 'sherpa_onnx':
+        return WhisperXEngine()
+    raise ValueError(f'Unknown transcription engine: {name}')
+
+
+@lru_cache
+def diarization_engine(name: str) -> DiarizationEngine:
+    if name == 'mock':
+        return MockEngine()
+    if name == 'sherpa_onnx':
         from pipeline.engines.sherpa_diarization import SherpaOnnxDiarizationEngine
-        diarization = SherpaOnnxDiarizationEngine()
-    elif diar == 'pyannote':
+        return SherpaOnnxDiarizationEngine()
+    if name == 'pyannote':
         from pipeline.engines.pyannote_engine import PyannoteEngine
-        diarization = PyannoteEngine()
-    else:
-        raise ValueError(f'Unknown diarization engine: {diar}')
-    return transcription, diarization
+        return PyannoteEngine()
+    raise ValueError(f'Unknown diarization engine: {name}')
+
+
+@lru_cache
+def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
+    stt, diar = get_settings().active_engines()
+    return transcription_engine(stt), diarization_engine(diar)
 
 
 logger = logging.getLogger('thread.run')
