@@ -31,7 +31,7 @@ def mock_segments(duration: float) -> list[dict[str, Any]]:
 
 class MockEngine:
     """Deterministic demo data; never represents the uploaded speech."""
-    def transcribe(self, audio: Path, duration: float) -> dict[str, Any]:
+    def transcribe(self, audio: Path, duration: float, hotwords: list[str] | None = None) -> dict[str, Any]:
         time.sleep(get_settings().mock_delay_sec)
         return {'language': 'en', 'segments': mock_segments(duration)}
 

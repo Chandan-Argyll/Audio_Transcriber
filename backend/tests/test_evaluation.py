@@ -20,7 +20,8 @@ def test_identical_and_permuted_speaker_ids():
     hypothesis = copy.deepcopy(reference)
     hypothesis['turns'][0]['speaker_id'] = 'different-id-1'
     hypothesis['turns'][1]['speaker_id'] = 'different-id-2'
-    assert scores(reference, hypothesis) == {'WER': 0, 'DER': 0, 'cpWER': 0}
+    values = scores(reference, hypothesis)
+    assert (values['WER'], values['DER'], values['cpWER'], values['speaker_accuracy']) == (0, 0, 0, 1)
 
 
 def test_errors_are_measured():

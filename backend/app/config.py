@@ -32,6 +32,13 @@ def installed(module: str) -> bool:
 TRANSCRIPTION_ENGINES = ('parakeet_onnx', 'whisperx', 'mock')
 DIARIZATION_ENGINES = ('sherpa_onnx', 'pyannote', 'mock')
 # Legacy ENGINE shorthand; TRANSCRIPTION_ENGINE / DIARIZATION_ENGINE always win.
+# Recording types offered in the upload pane: speaker counts passed to diarization
+# and correction dictionaries (backend/vocab/<name>.json) applied after transcription.
+RECORDING_PRESETS: dict[str, dict] = {
+    'general': {'label': 'General', 'speakers': {}, 'vocabularies': []},
+    'supreme_court': {'label': 'Supreme Court argument', 'speakers': {'min_speakers': 10, 'max_speakers': 14}, 'vocabularies': ['legal']},
+    'meeting': {'label': 'Meeting', 'speakers': {'min_speakers': 2, 'max_speakers': 8}, 'vocabularies': []},
+}
 ENGINE_PRESETS = {'cpu': ('parakeet_onnx', 'sherpa_onnx'), 'whisperx': ('whisperx', 'pyannote'), 'mock': ('mock', 'mock')}
 
 
@@ -58,6 +65,15 @@ class Settings(BaseSettings):
     max_chunk_sec: float = 60
     # sherpa-onnx clustering distance threshold: larger merges more voices into fewer speakers.
     diarization_threshold: float = 0.5
+    # Speakers with less total speech are merged into the most similar speaker (0 disables).
+    min_speaker_seconds: float = 10
+    # Parakeet contextual biasing with dictionary hotwords (> 0 enables it). Off by
+    # default: sherpa-onnx hotwords need modified beam search, which drops words on
+    # Parakeet TDT (measured), and scores of 4+ corrupt neighbouring words. The
+    # correction dictionaries do the vocabulary fixing instead.
+    hotwords_score: float = 0
+    # Correction dictionaries applied to every job (comma separated names or .json paths).
+    vocabularies: str = ''
     # large-v3-turbo is several times faster on CPU with similar English accuracy.
     whisper_model: str = 'large-v3'
     # Court sessions often exceed eight participants; pyannote has no fixed cap.
@@ -118,3 +134,14 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def speaker_options(options: dict) -> dict[str, int]:
+    """Only the diarization speaker counts from a job's options."""
+    return {k: v for k, v in options.items() if k in ('num_speakers', 'min_speakers', 'max_speakers')}
+
+
+def vocabularies_for(options: dict) -> list[str]:
+    configured = [name.strip() for name in get_settings().vocabularies.split(',') if name.strip()]
+    preset = RECORDING_PRESETS.get(options.get('recording_type', 'general'), RECORDING_PRESETS['general'])
+    return list(dict.fromkeys(configured + preset['vocabularies']))

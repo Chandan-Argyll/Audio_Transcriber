@@ -1,14 +1,16 @@
 import logging
 import time
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
-from app.config import get_settings
+from app.config import get_settings, installed, speaker_options, vocabularies_for
 from app.models import Job, SessionLocal
 from app.storage import storage
 from pipeline.engines.base import DiarizationEngine, TranscriptionEngine
 from pipeline.engines.mock import MockEngine
-from pipeline.merge import assign_speakers, build_transcript
+from pipeline.merge import absorb_short_turns, assign_speakers, build_transcript, snap_speaker_changes, timed_words
 from pipeline.preprocess import normalize
+from pipeline.vocabulary import corrector_for
 
 
 @lru_cache
@@ -45,6 +47,28 @@ def engines() -> tuple[TranscriptionEngine, DiarizationEngine]:
 
 
 logger = logging.getLogger('thread.run')
+
+
+def clean_segments(segments: list[dict[str, Any]], audio: Path) -> list[dict[str, Any]]:
+    """Fold speakers with < MIN_SPEAKER_SECONDS of speech into the most similar speaker."""
+    min_seconds = get_settings().min_speaker_seconds
+    if min_seconds <= 0 or not segments:
+        return segments
+    if not installed('sherpa_onnx'):
+        logger.warning('Small-speaker clean-up skipped: sherpa-onnx (embedding model) is not installed')
+        return segments
+    from pipeline.audio import SAMPLE_RATE, read_wav
+    from pipeline.speakers import SherpaEmbedder, merge_small_speakers
+    return merge_small_speakers(segments, min_seconds, SherpaEmbedder(read_wav(audio), SAMPLE_RATE))
+
+
+def attribute_words(result: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
+    """Word speakers by maximum overlap, then fold 1-2 word turns into a neighbour
+    and move mid-sentence speaker changes to pauses or sentence ends."""
+    result = assign_speakers(segments, result)
+    words = timed_words(result)
+    snap_speaker_changes(absorb_short_turns(words, segments))
+    return result
 
 
 def update(job_id: str, **values: Any) -> bool:
@@ -86,14 +110,15 @@ def run_job(job_id: str) -> None:
         audio = storage.path(job_id, 'normalized.wav')
         normalize(storage.path(job_id, 'original'), audio, duration)
         transcription, diarization = engines()
+        vocabulary = corrector_for(vocabularies_for(options))
         update(job_id, stage='transcribing', progress=25, stage_timings=lap('preprocess'))
-        result = transcription.transcribe(audio, duration)
+        result = transcription.transcribe(audio, duration, hotwords=vocabulary.hotwords)
         update(job_id, stage='aligning', progress=50, stage_timings=lap('transcribe'))
-        result = transcription.align(result, audio)
+        result = vocabulary.apply(transcription.align(result, audio))
         update(job_id, stage='diarizing', progress=70, stage_timings=lap('transcribe'))
-        segments = diarization.diarize(audio, duration, options)
+        segments = clean_segments(diarization.diarize(audio, duration, speaker_options(options)), audio)
         update(job_id, stage='merging', progress=90, stage_timings=lap('diarize'))
-        result = assign_speakers(segments, result)
+        result = attribute_words(result, segments)
         transcript = build_transcript(job_id, duration, result)
         transcript.update(transcription_engine=stt, diarization_engine=diar)
         timings = lap('merge')

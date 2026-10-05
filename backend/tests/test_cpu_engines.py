@@ -89,8 +89,11 @@ def test_short_chunks_cut_in_pauses_keep_the_same_words(speech_clip, parakeet, m
 
 def test_sherpa_diarization_respects_exact_speaker_count(speech_clip):
     from pipeline.engines.sherpa_diarization import SherpaOnnxDiarizationEngine
-    segments = SherpaOnnxDiarizationEngine().diarize(speech_clip, CLIP_SEC, {'num_speakers': 2})
+    engine = SherpaOnnxDiarizationEngine()
+    segments = engine.diarize(speech_clip, CLIP_SEC, {'num_speakers': 2})
     assert len({s['speaker'] for s in segments}) == 2
+    # The loaded pipeline is reused; a new exact count must still be honoured.
+    assert len({s['speaker'] for s in engine.diarize(speech_clip, CLIP_SEC, {'num_speakers': 1})}) == 1
     assert all(0 <= s['start'] < s['end'] <= CLIP_SEC + 0.1 for s in segments)
     assert [s['start'] for s in segments] == sorted(s['start'] for s in segments)
 
@@ -101,6 +104,8 @@ def test_full_job_with_cpu_engines(client, speech_clip, monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, 'transcription_engine', 'parakeet_onnx')
     monkeypatch.setattr(settings, 'diarization_engine', 'sherpa_onnx')
+    # A 30 s clip gives most speakers under the 10 s default, which would merge them.
+    monkeypatch.setattr(settings, 'min_speaker_seconds', 2)
     monkeypatch.setattr(jobs, 'enqueue', lambda _: None)
     engines.cache_clear()
     try:

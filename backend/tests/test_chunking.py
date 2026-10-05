@@ -78,3 +78,27 @@ def test_offset_words_moves_chunk_times_onto_the_recording_timeline():
     shifted = offset_words(words, 120.0)
     assert [(w['start'], w['end']) for w in shifted] == [(120.5, 120.9), (121.0, 121.4)]
     assert words[0]['start'] == 0.5  # Original left unchanged.
+
+
+def glued(tokens: list[str]) -> list[str]:
+    return [w['word'] for w in merge_tokens(tokens, [i * 0.08 for i in range(len(tokens))])]
+
+
+@pytest.mark.parametrize('tokens,expected', [
+    # Exact token sequences Parakeet emits: a standalone ' ' marks the next token as a word start.
+    ([' in', ' ', '2', '0', '0', '6'], ['in', '2006']),
+    ([' c', 'ase', ' ', '2', '4', '7', '3', '5', '1'], ['case', '247351']),
+    ([' pl', 'ain', ' ', 'er', 'ror'], ['plain', 'error']),
+    ([' the', ' ', 'er', 'ror'], ['the', 'error']),
+    ([' argument', ' ', 'es', 'p', 'ous', 'ed', ' ', '1', '4'], ['argument', 'espoused', '14']),
+    (['▁in', '▁', '2', '0', '0', '6', ','], ['in', '2006,']),
+])
+def test_word_start_markers_are_always_respected(tokens, expected):
+    assert glued(tokens) == expected
+    assert ''.join(glued(tokens)) == ''.join(t.strip(' ▁') for t in tokens)
+
+
+def test_pending_word_start_keeps_the_marker_tokens_timing_out_of_the_word():
+    words = merge_tokens([' in', ' ', '2', '0'], [0.0, 0.2, 0.24, 0.32], [0.16, 0.0, 0.08, 0.08])
+    assert [(w['word'], w['start']) for w in words] == [('in', 0.0), ('20', 0.24)]
+    assert words[0]['end'] == pytest.approx(0.16)

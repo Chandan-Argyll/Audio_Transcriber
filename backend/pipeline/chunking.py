@@ -68,11 +68,16 @@ def merge_tokens(tokens: Sequence[str], starts: Sequence[float], durations: Sequ
     """Merge SentencePiece sub-word tokens into words with start/end/score.
 
     A token starting with a space or '▁' begins a new word; other tokens
-    (including punctuation) continue the current word. A word ends at its last
-    token's start + duration (at least one frame) and never overlaps the next word.
+    (including punctuation) continue the current word. The vocabulary has no
+    '▁'-prefixed piece for some characters (digits, rare letter runs), so the
+    model emits a standalone '▁' token instead: it marks that the *next* token
+    starts a word ("in", "▁", "2", "0", "0", "6" -> "in 2006"). A word ends at
+    its last token's start + duration (at least one frame) and never overlaps
+    the next word.
     """
     words: list[dict[str, Any]] = []
     probs: list[list[float]] = []
+    word_start_pending = False
     for i, token in enumerate(tokens):
         text = token.replace('▁', ' ')
         start = float(starts[i])
@@ -80,8 +85,11 @@ def merge_tokens(tokens: Sequence[str], starts: Sequence[float], durations: Sequ
         end = start + max(length, FRAME_SEC)
         prob = exp(float(log_probs[i])) if log_probs is not None and i < len(log_probs) else None
         if not text.strip():
+            # A bare word-start marker: remember it for the next real token.
+            word_start_pending = word_start_pending or bool(text)
             continue
-        if text.startswith(' ') or not words:
+        if text.startswith(' ') or word_start_pending or not words:
+            word_start_pending = False
             words.append({'word': text.strip(), 'start': start, 'end': end, 'score': None})
             probs.append([])
         else:

@@ -1,0 +1,10 @@
+{
+  "description": "US court vocabulary. Applied to Supreme Court argument recordings, or always via VOCABULARIES=legal.",
+  "replacements": [
+    {"from": ["veneer"], "to": "venire"},
+    {"from": ["veneers"], "to": "venires"},
+    {"from": ["void dire", "voidir", "voidier"], "to": "voir dire"},
+    {"from": ["EDPA", "EPA"], "to": "AEDPA", "near": ["habeas", "deference", "standard", "federal"], "window": 3}
+  ],
+  "hotwords": ["Batson", "venire", "voir dire", "AEDPA", "peremptory"]
+}

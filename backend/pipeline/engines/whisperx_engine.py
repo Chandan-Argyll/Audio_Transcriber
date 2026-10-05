@@ -11,7 +11,7 @@ class WhisperXEngine:
         self.alignment: Any = None
         self.metadata: Any = None
 
-    def transcribe(self, audio: Path, duration: float) -> dict[str, Any]:
+    def transcribe(self, audio: Path, duration: float, hotwords: list[str] | None = None) -> dict[str, Any]:
         import whisperx
         settings = get_settings()
         if self.model is None:

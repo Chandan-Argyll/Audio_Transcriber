@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
-from app.config import get_settings
+from app.config import RECORDING_PRESETS, get_settings
 from app.models import Job, SessionLocal
 from app.queue import job_timeout, queue, safe_redis_endpoint, submit_local
 from app.schemas import JobOut, Transcript
@@ -45,7 +45,8 @@ def find_job(session: Session, job_id: str) -> Job:
 
 
 @router.post('', response_model=JobOut, status_code=202)
-def create_job(file: UploadFile = File(...), num_speakers: int | None = Form(None), min_speakers: int | None = Form(None), max_speakers: int | None = Form(None)) -> Job:
+def create_job(file: UploadFile = File(...), num_speakers: int | None = Form(None), min_speakers: int | None = Form(None), max_speakers: int | None = Form(None),
+               recording_type: str = Form('general')) -> Job:
     settings = get_settings()
     # In local mode inference runs in this process, so a missing model or token
     # would only surface after a long upload; refuse up front instead.
@@ -55,6 +56,10 @@ def create_job(file: UploadFile = File(...), num_speakers: int | None = Form(Non
     options = {k: v for k, v in {'num_speakers': num_speakers, 'min_speakers': min_speakers, 'max_speakers': max_speakers}.items() if v is not None}
     if any(not 1 <= n <= limit for n in options.values()) or (min_speakers or 1) > (max_speakers or limit) or (num_speakers is not None and (min_speakers is not None or max_speakers is not None)):
         raise HTTPException(400, f'Use an exact count OR a min/max range, between 1 and {limit}')
+    if recording_type not in RECORDING_PRESETS:
+        raise HTTPException(400, f'recording_type must be one of: {", ".join(RECORDING_PRESETS)}')
+    if recording_type != 'general':
+        options['recording_type'] = recording_type
     job_id = str(uuid4())
     target = storage.path(job_id, 'original')
     size = 0

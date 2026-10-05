@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import get_settings
+from app.config import RECORDING_PRESETS, get_settings
 from app.models import init_db
 from app.queue import queue_health, resume_local_jobs
 from app.routers.jobs import router
@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title='Thread · Speaker-labeled transcription', lifespan=lifespan)
+app = FastAPI(title='Argyll Infotech Audio Transcriber', lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins.split(','), allow_methods=['*'], allow_headers=['*'])
 app.include_router(router)
 
@@ -27,7 +27,7 @@ def live() -> dict[str, str]:
 
 
 @app.get('/api/health')
-def health() -> dict[str, str | int | None]:
+def health() -> dict[str, object]:
     settings = get_settings()
     queue = queue_health()
     # Only a local backend runs inference in this process; with Redis the API
@@ -43,4 +43,5 @@ def health() -> dict[str, str | int | None]:
         'queue_backend': settings.queue_backend,
         'engine_issue': engine_issue,
         'max_speakers': settings.max_speakers,
+        'recording_presets': {key: {'label': p['label'], **p['speakers']} for key, p in RECORDING_PRESETS.items()},
     }

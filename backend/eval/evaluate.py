@@ -16,6 +16,7 @@ import argparse
 import copy
 import csv
 import json
+import re
 import tempfile
 import time
 from collections import defaultdict
@@ -23,17 +24,20 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from app.config import get_settings
+from app.config import RECORDING_PRESETS, get_settings, speaker_options, vocabularies_for
 from app.schemas import Transcript
+from eval.attribution import speaker_attribution
 from eval.chat import load_chat
-from pipeline.merge import assign_speakers, build_transcript
+from eval.scotus import load_scotus
+from pipeline.merge import build_transcript
 from pipeline.preprocess import normalize, probe
-from pipeline.run import diarization_engine, transcription_engine
+from pipeline.run import attribute_words, clean_segments, diarization_engine, transcription_engine
+from pipeline.vocabulary import corrector_for
 
 AUDIO = {'.wav', '.mp3', '.m4a', '.flac', '.ogg', '.mp4', '.webm'}
-METRICS = ('WER', 'DER', 'cpWER')
-COLUMNS = ['file', 'engines', 'status', *METRICS, 'audio_sec', 'processing_sec', 'speed_factor',
-           'preprocess_sec', 'transcribe_sec', 'diarize_sec', 'merge_sec']
+METRICS = ('WER', 'DER', 'cpWER', 'speaker_accuracy', 'mid_sentence_turns')
+COLUMNS = ['file', 'engines', 'status', *METRICS, 'hypothesis_speakers', 'reference_speakers', 'audio_sec', 'processing_sec',
+           'speed_factor', 'preprocess_sec', 'transcribe_sec', 'diarize_sec', 'merge_sec']
 
 
 def normalize_text(text: str) -> str:
@@ -92,19 +96,49 @@ def scores(reference: dict[str, Any], hypothesis: dict[str, Any]) -> dict[str, f
                 output[Segment(turn['start'], turn['end']), i] = turn['speaker_id']
         return output
 
-    uem = Timeline([Segment(0, reference['duration_sec'])])
-    der = DiarizationErrorRate(collar=.25, skip_overlap=False)(annotation(reference), annotation(hypothesis), uem=uem)
+    # Untimed references (court transcripts) cannot score DER.
+    der = None
+    if any(t['end'] > t['start'] for t in reference['turns']):
+        uem = Timeline([Segment(0, reference['duration_sec'])])
+        der = float(DiarizationErrorRate(collar=.25, skip_overlap=False)(annotation(reference), annotation(hypothesis), uem=uem))
     hyp_text = text(hypothesis)
-    return {'WER': jiwer.wer(text(reference), hyp_text) if hyp_text else 1.0, 'DER': float(der),
-            'cpWER': cp_wer(per_speaker(reference), per_speaker(hypothesis))}
+    attribution = speaker_attribution(reference, hypothesis)
+    return {'WER': jiwer.wer(text(reference), hyp_text) if hyp_text else 1.0, 'DER': der,
+            'cpWER': cp_wer(per_speaker(reference), per_speaker(hypothesis)),
+            **{k: attribution[k] for k in ('speaker_accuracy', 'mid_sentence_turns', 'hypothesis_speakers', 'reference_speakers')},
+            'purity': attribution['purity']}
 
 
 def load_reference(path: Path, duration: float) -> dict[str, Any]:
-    data = load_chat(path, duration) if path.suffix.lower() == '.cha' else json.loads(path.read_text(encoding='utf-8'))
+    suffix = path.suffix.lower()
+    data = (load_chat(path, duration) if suffix == '.cha' else load_scotus(path, duration) if suffix == '.pdf'
+            else json.loads(path.read_text(encoding='utf-8')))
     reference = Transcript.model_validate(data).model_dump()
     if not reference['turns']:
         raise SystemExit(f'{path.name}: reference has no turns; exclude silent references from this evaluation')
     return reference
+
+
+EXPORT_LINE = re.compile(r'^\[(\d+):(\d+):(\d+)\] ([^:]+): (.*)$')
+
+
+def load_prediction(path: Path) -> dict[str, Any]:
+    """Saved prediction JSON, or the app's TXT export ("[hh:mm:ss] Speaker: text" lines, untimed words)."""
+    if path.suffix.lower() != '.txt':
+        return json.loads(path.read_text(encoding='utf-8'))
+    turns: list[dict[str, Any]] = []
+    for line in path.read_text(encoding='utf-8').splitlines():
+        match = EXPORT_LINE.match(line)
+        if match:
+            start = float(int(match[1]) * 3600 + int(match[2]) * 60 + int(match[3]))
+            turns.append({'id': len(turns), 'speaker_id': match[4], 'start': start, 'end': start, 'text': match[5], 'words': []})
+        elif turns and line.strip():
+            turns[-1]['text'] += ' ' + line.strip()
+    for turn in turns:
+        turn['words'] = [{'w': w, 'start': turn['start'], 'end': turn['start'], 'score': None} for w in turn['text'].split()]
+    speakers = list(dict.fromkeys(t['speaker_id'] for t in turns))
+    return {'job_id': path.stem, 'duration_sec': 0.0, 'speakers': [{'id': s, 'label': s, 'color_index': 0} for s in speakers],
+            'turns': turns}
 
 
 def combination_issue(stt: str, diar: str) -> str | None:
@@ -113,8 +147,9 @@ def combination_issue(stt: str, diar: str) -> str | None:
 
 class Runner:
     """Runs engine combinations on one recording, sharing preprocessing and transcriptions."""
-    def __init__(self, audio: Path, duration: float, folder: Path, options: dict[str, int]) -> None:
+    def __init__(self, audio: Path, duration: float, folder: Path, options: dict[str, Any]) -> None:
         self.audio, self.duration, self.options = audio, duration, options
+        self.vocabulary = corrector_for(vocabularies_for(options))
         self.wav = folder / 'normalized.wav'
         began = time.perf_counter()
         normalize(audio, self.wav, duration)
@@ -125,14 +160,16 @@ class Runner:
         if stt not in self.transcriptions:
             engine = transcription_engine(stt)
             began = time.perf_counter()
-            result = engine.align(engine.transcribe(self.wav, self.duration), self.wav)
+            result = engine.transcribe(self.wav, self.duration, hotwords=self.vocabulary.hotwords)
+            result = self.vocabulary.apply(engine.align(result, self.wav))
             self.transcriptions[stt] = (result, time.perf_counter() - began)
         result, transcribe = self.transcriptions[stt]
         began = time.perf_counter()
-        segments = diarization_engine(diar).diarize(self.wav, self.duration, self.options)
+        segments = diarization_engine(diar).diarize(self.wav, self.duration, speaker_options(self.options))
+        segments = clean_segments(segments, self.wav)
         diarize = time.perf_counter() - began
         began = time.perf_counter()
-        transcript = build_transcript(self.audio.stem, self.duration, assign_speakers(segments, copy.deepcopy(result)))
+        transcript = build_transcript(self.audio.stem, self.duration, attribute_words(copy.deepcopy(result), segments))
         transcript.update(transcription_engine=stt, diarization_engine=diar)
         merge = time.perf_counter() - began
         total = self.preprocess + transcribe + diarize + merge
@@ -141,16 +178,26 @@ class Runner:
 
 
 def find_reference(audio: Path) -> Path | None:
-    return next((p for p in (audio.with_suffix('.json'), audio.with_suffix('.cha')) if p.is_file()), None)
+    return next((p for p in (audio.with_suffix(s) for s in ('.json', '.cha', '.pdf')) if p.is_file()), None)
 
 
-def print_row(row: dict[str, Any]) -> None:
+def percent(value: Any) -> str:
+    return f'{value:7.1%}' if value is not None else f'{"n/a":>7}'
+
+
+def print_row(row: dict[str, Any], details: bool = False) -> None:
     label = f'{row["file"][:24]:24} {row["engines"]:28}'
     if row['status'] != 'ok':
         print(f'{label} {row["status"]}')
         return
-    timing = f'{row["processing_sec"]:9.1f} {row["speed_factor"]:7.2f}x' if 'processing_sec' in row else f'{"—":>9} {"—":>8}'
-    print(f'{label} {row["WER"]:7.1%} {row["DER"]:7.1%} {row["cpWER"]:7.1%} {row["audio_sec"]:9.1f} {timing}')
+    timing = f'{row["processing_sec"]:9.1f} {row["speed_factor"]:7.2f}x' if 'processing_sec' in row else f'{"-":>9} {"-":>8}'
+    counts = f'{row.get("hypothesis_speakers", "")}/{row.get("reference_speakers", "")}'
+    print(f'{label} {percent(row["WER"])} {percent(row["DER"])} {percent(row["cpWER"])} {percent(row["speaker_accuracy"])} '
+          f'{percent(row["mid_sentence_turns"])} {counts:>8} {row["audio_sec"]:9.1f} {timing}')
+    if details and row.get('purity'):
+        for person, info in sorted(row['purity'].items(), key=lambda item: -item[1]['words']):
+            print(f'    {person:16} {info["words"]:6} words  purity {info["purity"]:6.1%}  '
+                  f'mostly {info["dominant"]:24} mapped to {info["mapped_to"] or "-"}')
 
 
 def main() -> None:
@@ -161,8 +208,12 @@ def main() -> None:
     parser.add_argument('--engines', nargs='+', metavar='STT+DIAR',
                         help='Combinations such as parakeet_onnx+sherpa_onnx parakeet_onnx+pyannote (default: configured engines)')
     parser.add_argument('--oracle-speakers', action='store_true', help='Pass the reference speaker count as num_speakers')
+    parser.add_argument('--recording-type', choices=list(RECORDING_PRESETS), default='general',
+                        help='Apply a recording preset (speaker range and correction dictionaries), as in the upload pane')
+    parser.add_argument('--details', action='store_true', help='Print per-speaker purity and mapping')
     parser.add_argument('--csv', type=Path, default=Path('results.csv'))
-    parser.add_argument('--predictions', type=Path, help='Score saved JSON (flat, or one folder per combination) instead of running engines')
+    parser.add_argument('--predictions', type=Path, help='Score saved JSON (flat, one folder per combination, or a single '
+                        'JSON/TXT export file) instead of running engines')
     parser.add_argument('--save-predictions', type=Path, help='Save outputs as <folder>/<stt+diar>/<stem>.json')
     args = parser.parse_args()
 
@@ -185,20 +236,27 @@ def main() -> None:
         parser.error('--engines entries must look like parakeet_onnx+sherpa_onnx')
 
     rows: list[dict[str, Any]] = []
-    print(f'{"File":24} {"Engines":28} {"WER":>7} {"DER":>7} {"cpWER":>7} {"Audio s":>9} {"Proc s":>9} {"Speed":>8}')
+    print(f'{"File":24} {"Engines":28} {"WER":>7} {"DER":>7} {"cpWER":>7} {"SpkAcc":>7} {"MidSnt":>7} {"Spk":>8} '
+          f'{"Audio s":>9} {"Proc s":>9} {"Speed":>8}')
     for audio, reference_path in pairs:
         duration = probe(audio)
         reference = load_reference(reference_path, duration)
-        options = {'num_speakers': len(reference['speakers'])} if args.oracle_speakers else {}
+        preset = RECORDING_PRESETS[args.recording_type]
+        options: dict[str, Any] = {'num_speakers': len(reference['speakers'])} if args.oracle_speakers else dict(preset['speakers'])
+        if args.recording_type != 'general':
+            options['recording_type'] = args.recording_type
         with tempfile.TemporaryDirectory() as folder:
             runner = None
             for stt, diar in combos:
                 label = f'{stt}+{diar}'
                 row: dict[str, Any] = {'file': audio.name, 'engines': label, 'status': 'ok', 'audio_sec': duration}
                 if args.predictions:
-                    saved = args.predictions / label / f'{audio.stem}.json'
-                    saved = saved if saved.is_file() else args.predictions / f'{audio.stem}.json'
-                    prediction = json.loads(saved.read_text(encoding='utf-8'))
+                    if args.predictions.is_file():
+                        saved = args.predictions
+                    else:
+                        saved = args.predictions / label / f'{audio.stem}.json'
+                        saved = saved if saved.is_file() else args.predictions / f'{audio.stem}.json'
+                    prediction = load_prediction(saved)
                 elif issue := combination_issue(stt, diar):
                     row['status'] = f'skipped: {issue}'
                     rows.append(row)
@@ -215,13 +273,13 @@ def main() -> None:
                     target.write_text(json.dumps(prediction, indent=2), encoding='utf-8')
                 row.update(scores(reference, prediction))
                 rows.append(row)
-                print_row(row)
+                print_row(row, args.details)
 
     scored = [r for r in rows if r['status'] == 'ok']
     for label in dict.fromkeys(r['engines'] for r in scored):
         group = [r for r in scored if r['engines'] == label]
         average = {'file': 'MACRO_AVERAGE', 'engines': label, 'status': 'ok', 'audio_sec': sum(r['audio_sec'] for r in group),
-                   **{m: mean(r[m] for r in group) for m in METRICS}}
+                   **{m: (mean(r[m] for r in group) if all(r[m] is not None for r in group) else None) for m in METRICS}}
         if all('processing_sec' in r for r in group):
             average['processing_sec'] = sum(r['processing_sec'] for r in group)
             average['speed_factor'] = average['audio_sec'] / average['processing_sec']

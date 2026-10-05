@@ -1,4 +1,6 @@
-# Thread — Speaker-labeled audio transcription
+# Argyll Infotech Audio Transcriber
+
+Speaker-labeled audio transcription, a product of [Argyll Infotech](https://argyllinfotech.com).
 
 For native development, Vite reads `API_PORT` / `API_PROXY_TARGET` from the root
 `.env`. The default target is `http://127.0.0.1:<API_PORT>` (8000 if unset).
@@ -95,7 +97,9 @@ pause in the window, the cut goes at the quietest 20 ms frame of the window's se
 half. Each chunk is decoded and its timestamps are offset back onto the recording
 timeline. Word timestamps come from the model's token timestamps and TDT durations
 (sub-word tokens merged into words; punctuation does not stretch a word), so there
-is no separate alignment step. Word scores are mean token probabilities.
+is no separate alignment step. Word scores are mean token probabilities. A
+standalone word-start token (Parakeet emits one before digits and some letter runs)
+always starts a new word, so "in 2006" and "plain error" are never glued together.
 
 **sherpa-onnx diarization (`sherpa_onnx`).** Speaker options map onto its clustering:
 an exact `num_speakers` (or equal min and max) fixes the speaker count; otherwise
@@ -113,6 +117,36 @@ the ONNX engines or the Docker worker.
 
 **WhisperX (`whisperx`, optional).** WhisperX `WHISPER_MODEL` (large-v3) with English
 forced alignment; mainly for GPU hosts.
+
+**Recording types.** The upload pane offers General (automatic), Supreme Court
+argument (10–14 speakers, legal vocabulary) and Meeting (2–8 speakers). Choosing one
+fills in the speaker fields, which can still be edited; the API stores
+`recording_type`, and only the speaker counts reach diarization (an exact count is
+sherpa-onnx's `num_clusters`, including on later jobs that reuse the loaded model).
+Presets are defined once in `backend/app/config.py` and served by `/api/health`.
+
+**Speaker clean-up.** After diarization, any speaker with less than
+`MIN_SPEAKER_SECONDS` (10) of speech is merged into the speaker whose average
+WeSpeaker embedding (over its longest segments) is most similar. On very short
+recordings this can merge genuine speakers; lower the setting or set 0 to disable.
+After word assignment, turns of one or two words join the neighbouring turn whose
+speaker overlaps them most in the diarization (the closer one on a tie). Speaker
+changes inside a sentence then move to the nearest pause of at least 200 ms or
+sentence-ending punctuation within 1.5 s; failing that, a change at a real gap stays,
+and a change between touching words moves to the nearest gap in the turn (or the
+shorter side joins its neighbour), so a turn is never split between two words with
+no gap.
+
+**Domain vocabulary.** Correction dictionaries in `backend/vocab/*.json` are
+applied after transcription: whole-word, case-aware replacements, optionally only
+near context words (`legal.json`: veneer→venire, void dire/voidir/voidier→voir
+dire, EDPA/EPA→AEDPA within 3 words of habeas, deference, standard or federal).
+Supreme Court recordings use `legal`; `VOCABULARIES` adds dictionaries (names or
+.json paths) to every job. Dictionary `hotwords` can bias Parakeet through
+sherpa-onnx per-stream hotwords (`HOTWORDS_SCORE` > 0), but this is **off by
+default**: it requires modified beam search, which drops words on Parakeet TDT in
+the tested sherpa-onnx 1.13.8, and scores of 4 or more corrupt neighbouring words.
+The correction dictionary does the vocabulary fixing instead.
 
 All diarization engines feed the same merge: each word takes the speaker with the
 largest overlap, words overlapping no speaker become Unknown, raw speaker IDs are
@@ -272,12 +306,34 @@ python -m eval.evaluate ../dataset --predictions ../predictions --engines parake
 ```
 
 Each row shows WER (jiwer), DER (pyannote.metrics, 0.25 s collar, overlap
-included, scored over the whole recording), cpWER, audio length, processing time,
+included, scored over the whole recording; n/a for untimed references), cpWER,
+speaker accuracy, the share of turns starting mid-sentence, the number of
+hypothesis/reference speakers, audio length, processing time,
 and the speed factor (audio length / processing time; above 1 is faster than real
 time). Combinations sharing a transcription engine reuse one transcription, but
 each row's processing time includes it. A combination that cannot run (for example
 pyannote without PyTorch or HF_TOKEN) is listed as skipped with the reason.
-`--oracle-speakers` passes the reference speaker count. Text is lowercased,
+`--oracle-speakers` passes the reference speaker count and `--recording-type`
+applies an upload preset. `--predictions` also accepts a single saved JSON or an
+app TXT export, so earlier results can be scored. `--details` prints per-speaker
+purity.
+
+**Speaker attribution.** Reference and hypothesis words are normalized and aligned
+with jiwer; each aligned pair (hit or substitution) counts in a Person × real
+speaker matrix. Speaker accuracy is the share of aligned words whose Person maps to
+their true speaker under the best one-to-one mapping (Hungarian algorithm), so extra
+Persons count as wrong. Purity is, per Person, the share of its words from its most
+frequent real speaker. A turn starts mid-sentence when the previous turn does not
+end with `.`, `?` or `!`.
+
+**Supreme Court transcripts.** `python -m eval.scotus 24-7351.pdf 24-7351.json`
+converts an official oral-argument PDF from supremecourt.gov (`.pdf` references can
+also be passed directly). It keeps the argument between "P R O C E E D I N G S" and
+"(Whereupon ... submitted.)", strips page headers and footers, page and line
+numbers, argument headings and stage directions such as "(Laughter.)", and starts a
+turn at each speaker label ("JUSTICE KAGAN:", "MR. STEWART:"). The transcript is
+untimed, so it scores WER, cpWER and speaker attribution but not DER. Scanned PDFs
+without a text layer are rejected with a message. Text is lowercased,
 punctuation removed and whitespace normalized; digits are not spelled out, so
 numerals and contractions (gonna / going to) count as errors against spoken-form
 references. cpWER permutes speaker identities optimally, so names do not matter; it

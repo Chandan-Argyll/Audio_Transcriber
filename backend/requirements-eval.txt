@@ -3,3 +3,5 @@ jiwer>=4,<5
 pyannote.metrics>=4,<5
 # meeteval needs a C++ build on Windows; eval.evaluate computes the same cpWER without it.
 meeteval>=0.4,<1; sys_platform != "win32"
+# Supreme Court PDF transcript references (eval.scotus).
+pypdf>=4,<7
